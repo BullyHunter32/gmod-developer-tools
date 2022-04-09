@@ -141,12 +141,14 @@ function PANEL:Init()
         if self.m_bDraggingEnt then
             if key == MOUSE_LEFT then
                 self.m_bDraggingEnt = false 
+                self.dragAxis = nil
                 return
             elseif key == MOUSE_RIGHT then
                 self.m_DraggingEnt:SetPos(self.m_vecDragOrigin)
                 self:SetupProps(self.m_DraggingEnt)
                 self.selected = nil
                 self.m_bDraggingEnt = false
+                self.dragAxis = nil
                 return
             end
         end
@@ -193,11 +195,24 @@ function PANEL:Init()
         local w, h = pnl:GetSize()
 
         if self.m_bDraggingEnt then
-            local diffX = (self.m_vecStartDragPos.x - cx)*0.1
-            local diffY = (self.m_vecStartDragPos.y - cy)*0.1
+            local mult = self:GetCamDistance()*0.001
+            local diffX = (self.m_vecStartDragPos.x - cx)*mult
+            local diffY = (self.m_vecStartDragPos.y - cy)*mult
 
             local pos = self.m_vecDragOrigin
-            local newPos = pos - self:GetCamAng():Right()*diffX + self:GetCamAng():Up()*diffY
+            local newPos
+            if self.dragAxis then
+                if self.dragAxis == 1 then
+                    newPos = pos + self.m_DraggingEnt:GetAngles():Right()*diffX
+                elseif self.dragAxis == 2 then
+                    newPos = pos + self.m_DraggingEnt:GetAngles():Forward()*diffX
+                elseif self.dragAxis == 3 then
+                    newPos = pos + self.m_DraggingEnt:GetAngles():Up()*diffY
+                end
+            else
+                newPos = pos - self:GetCamAng():Right()*diffX + self:GetCamAng():Up()*diffY
+            end
+
             self.m_DraggingEnt:SetPos(newPos)
             self:SetupProps(self.m_DraggingEnt)
 
@@ -256,6 +271,7 @@ function PANEL:Init()
         self.m_vecStartDragPos = Vector(cx,cy)
         self.m_DraggingEnt = ent
         self.m_vecDragOrigin = ent:GetPos()
+        self.dragAxis = nil
     end
     self.ModelRenderer.FocusOnEnt = function(pnl, ent)
         local mins, maxs = ent:GetRenderBounds()
@@ -365,6 +381,16 @@ function PANEL:OnKeyCodePressed(key)
     if key == KEY_PERIOD then
         if self.selected then
             self.ModelRenderer:FocusOnEnt(self.selected)
+        end
+    end
+    
+    if self.m_bDraggingEnt then
+        if key == KEY_X then
+            self.dragAxis = 1
+        elseif key == KEY_Y then
+            self.dragAxis = 2
+        elseif key == KEY_Z then
+            self.dragAxis = 3
         end
     end
 end
