@@ -149,6 +149,7 @@ function PANEL:Init()
                 self.selected = nil
                 self.m_bDraggingEnt = false
                 self.dragAxis = nil
+                self.m_vecDragOffset = nil
                 return
             end
         end
@@ -199,7 +200,7 @@ function PANEL:Init()
             local diffX = (self.m_vecStartDragPos.x - cx)*mult
             local diffY = (self.m_vecStartDragPos.y - cy)*mult
 
-            local pos = self.m_vecDragOrigin
+            local pos = self.m_vecDragOrigin + (self.m_vecDragOffset or Vector())
             local newPos
             if self.dragAxis then
                 if self.dragAxis == 1 then
@@ -216,28 +217,30 @@ function PANEL:Init()
             self.m_DraggingEnt:SetPos(newPos)
             self:SetupProps(self.m_DraggingEnt)
 
-            -- local bRet = false
-            -- if cx > w then
-            --     input.SetCursorPos(1, cy)
-            --     bReset = true
-            -- end
-            -- if cx < 0 then
-            --     input.SetCursorPos(w-1, cy) 
-            --     bReset = true
-            -- end
-            -- if cy > h then
-            --     input.SetCursorPos(cx, 1)
-            --     bReset = true
-            -- end
-            -- if cy < 0 then
-            --     input.SetCursorPos(cx, h-1) 
-            --     bReset = true
-            -- end
+            local bReset = false
+            local realx, realy = input.GetCursorPos()
+            if cx > w then
+                input.SetCursorPos(pX + 1, realy)
+                bReset = true
+            end
+            if cx < 0 then
+                input.SetCursorPos(pX + (w-1), realy) 
+                bReset = true
+            end
+            if cy > h then
+                input.SetCursorPos(realx, pY + 1)
+                bReset = true
+            end
+            if cy < 0 then
+                input.SetCursorPos(realx, pY + (h-1)) 
+                bReset = true
+            end
 
-            -- if bReset then
-            --     cx, cy = input.GetCursorPos()
-            --     self.m_vecStartDragPos = Vector(cx, cy)
-            -- end
+            if bReset then
+                cx, cy = GetCursorPos(pX, pY)
+                self.m_vecStartDragPos = Vector(cx, cy)
+                self.m_vecDragOffset = (self.m_vecDragOffset or Vector()) + self.m_DraggingEnt:GetPos() - (self.m_vecDragOffset or self.m_vecDragOrigin) 
+            end
             return
         end
 
@@ -393,6 +396,21 @@ function PANEL:OnKeyCodePressed(key)
             self.dragAxis = 3
         end
     end
+
+    if key == KEY_DELETE then
+        if IsValid(self.selected) then
+            for i = 1, #self.Models do
+                local d = self.Models[i]
+                if d.csEnt == self.selected then
+                    d.panel:Remove()
+                    d.csEnt:Remove()
+                    table.remove(self.Models, i)
+                    self.selected = nil
+                    break
+                end
+            end
+        end
+    end
 end
 
 function PANEL:AddModel(mdl)
@@ -406,6 +424,7 @@ function PANEL:AddModel(mdl)
 
     table.insert(self.Models, dat)
     local pnl = self.Elements:Add("Developer.ModelBrowserElement")
+    dat.panel = pnl
     pnl:Dock(TOP)
     pnl:SetTall(28)
     pnl:SetData(dat)

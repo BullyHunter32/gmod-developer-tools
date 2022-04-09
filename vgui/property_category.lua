@@ -79,7 +79,6 @@ local types = {
             x = tonumber(x) or 0
             y = tonumber(y) or 0
             z = tonumber(z) or 0
-            print("X: ", x,y,z)
             fnCallback(pnl, Vector(x,y,z))
         end
         return input
@@ -89,10 +88,10 @@ local types = {
         input:Dock(FILL)
         input:SetText("0, 0, 0")
         input.OnValueChange = function(pnl, txt)
-            local x, y, z = txt:match("(.-), (.-), (.-)")
-            x = x or 0
-            y = y or 0
-            z = z or 0
+            local x, y, z = txt:match("([%-%d%g]+),([%-%d%g]+),([%-%d%g]+)")
+            x = tonumber(x) or 0
+            y = tonumber(y) or 0
+            z = tonumber(z) or 0
             fnCallback(pnl, Angle(x,y,z))
         end
         return input
