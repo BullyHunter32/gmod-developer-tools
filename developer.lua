@@ -61,6 +61,11 @@ Developer:CreateFont("Developer.ModelBrowserElement", {
     size = 15
 })
 
+Developer:CreateFont("Developer.Property", {
+    font = "Roboto",
+    size = 15
+})
+
 local vguiDir = Developer:GetRootDir().."/vgui/"
 local incDir = vguiDir:match("^lua/(.+)")
 local tFiles = file.Find(vguiDir.."*.lua", "GAME")

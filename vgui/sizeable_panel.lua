@@ -97,6 +97,10 @@ function PANEL:PerformLayout()
     
 end
 
+function PANEL:OnResized(w)
+
+end
+
 function PANEL:Think()
     local side = self:GetDragging()
     if not side then return end
@@ -112,10 +116,12 @@ function PANEL:Think()
     if side == LEFT then
         local newWidth = self:GetStartSize().x + (startPos.x - cx)
         self:SetWide(newWidth)
+        self:OnResized(newWidth)
         self:GetParent():InvalidateLayout(t)
     elseif side == RIGHT then
         local newWidth = self:GetStartSize().x + (cx - startPos.x)
         self:SetWide(newWidth)
+        self:OnResized(newWidth)
         self:GetParent():InvalidateLayout()
     end
 end

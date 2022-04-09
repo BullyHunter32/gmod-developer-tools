@@ -37,7 +37,6 @@ function PANEL:Select(tData)
 end
 
 function PANEL:Think()
-    PrintTable(self:GetChildren())
     self:MoveToFront() -- little hack
 end
 
