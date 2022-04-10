@@ -211,11 +211,11 @@ function PANEL:Init()
             local newPos
             if self.dragAxis then
                 if self.dragAxis == 1 then
-                    newPos = pos + self.m_DraggingEnt:GetAngles():Right()*diffX
+                    newPos = pos + angle_zero:Right()*diffX
                 elseif self.dragAxis == 2 then
-                    newPos = pos + self.m_DraggingEnt:GetAngles():Forward()*diffX
+                    newPos = pos + angle_zero:Forward()*diffX
                 elseif self.dragAxis == 3 then
-                    newPos = pos + self.m_DraggingEnt:GetAngles():Up()*diffY
+                    newPos = pos + angle_zero:Up()*diffY
                 end
             else
                 newPos = pos - self:GetCamAng():Right()*diffX + self:GetCamAng():Up()*diffY
@@ -247,7 +247,7 @@ function PANEL:Init()
             if bReset then
                 cx, cy = GetCursorPos(pX, pY)
                 self.m_vecStartDragPos = Vector(cx, cy)
-                self.m_vecDragOffset = (self.m_vecDragOffset or Vector()) + self.m_DraggingEnt:GetPos() - (self.m_vecDragOffset or self.m_vecDragOrigin) 
+                self.m_vecDragOffset = (self.m_vecDragOffset or Vector()) + self.m_DraggingEnt.vecPos - (self.m_vecDragOffset or self.m_vecDragOrigin) 
             end
             return
         end
@@ -281,7 +281,7 @@ function PANEL:Init()
         self.m_bDraggingEnt = true
         self.m_vecStartDragPos = Vector(cx,cy)
         self.m_DraggingEnt = ent
-        self.m_vecDragOrigin = ent:GetPos()
+        self.m_vecDragOrigin = ent.vecPos
         self.dragAxis = nil
     end
     self.ModelRenderer.FocusOnEnt = function(pnl, ent)
@@ -338,12 +338,12 @@ function {variableName}:UpdatePos()
         pos = parent:GetPos()
         ang = parent:GetAngles()
 
-        pos = pos + ang:Right()*self.posOffset.x
-        pos = pos + ang:Forward()*self.posOffset.y
+        pos = pos + ang:Forward()*self.posOffset.x
+        pos = pos + ang:Right()*self.posOffset.y
         pos = pos + ang:Up()*self.posOffset.z
 
-        ang:RotateAroundAxis(ang:Right(), self.angOffset.x)
-        ang:RotateAroundAxis(ang:Forward(), self.angOffset.y)
+        ang:RotateAroundAxis(ang:Forward(), self.angOffset.x)
+        ang:RotateAroundAxis(ang:Right(), self.angOffset.y)
         ang:RotateAroundAxis(ang:Up(), self.angOffset.z)
     end
 
@@ -380,7 +380,7 @@ end
     self.PropertyTypes = {}
 
     self:AddPropertyType("Transform", "Position", "Vector", function(this, ent)
-        local pos = ent:GetPos()
+        local pos = ent.vecPos
         local txt = string.format("%.2f, %.2f, %.2f", pos.x, pos.y, pos.z)
         this.Input:SetText(txt)
     end, function(_, vec)
@@ -389,12 +389,11 @@ end
     end)
 
     self:AddPropertyType("Transform", "Angle", "Angle", function(this, ent)
-        local ang = ent:GetAngles()
+        local ang = ent.angAngles
         local txt = string.format("%.2f, %.2f, %.2f", ang.x, ang.y, ang.z)
         this.Input:SetText(txt)
     end, function(this, ang)
         self.selected.angAngles = ang
-        self.selected:SetAngles(ang)
     end)
 
     self:AddPropertyType("Transform", "Scale", "Float", function(this, ent)
@@ -680,15 +679,15 @@ local function GetRenderPos(ent)
     local renderPos = entPos
     local renderAng = entAng
     if ent.parentObject and IsValid(ent.parentObject.csEnt) then
-        local parent = ent.parentObject.csEnt
+        local parent, ang = ent.parentObject.csEnt
         renderPos, ang = GetRenderPos(parent)
-        renderPos = renderPos + ang:Right()*entPos.x
-        renderPos = renderPos + ang:Forward()*entPos.y
+        renderPos = renderPos + ang:Forward()*entPos.x
+        renderPos = renderPos + ang:Right()*entPos.y
         renderPos = renderPos + ang:Up()*entPos.z
 
         renderAng = Angle(ang.x, ang.y, ang.z)
-        renderAng:RotateAroundAxis(renderAng:Right(), entAng.x)
-        renderAng:RotateAroundAxis(renderAng:Forward(), entAng.y)
+        renderAng:RotateAroundAxis(renderAng:Forward(), entAng.x)
+        renderAng:RotateAroundAxis(renderAng:Right(), entAng.y)
         renderAng:RotateAroundAxis(renderAng:Up(), entAng.z)
     end
     return renderPos, renderAng
