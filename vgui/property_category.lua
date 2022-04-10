@@ -169,6 +169,7 @@ function PANEL:AddProperty(sName, sType, fnSetup, fnCallback, master)
     pnl.NamePanel.OnResized = function(pnl, w)
         self:SetPropWidth(w)
     end
+    pnl.OnSetup = function()end
     pnl.Type = sType
     local type = types[sType]
     pnl.fnSetup = fnSetup
@@ -183,7 +184,8 @@ function PANEL:Setup(ent)
     for i = 1, self.iProps do
         local p = self.tProps[i]
         if p.fnSetup then
-            p:fnSetup(ent)
+            local dat = p:fnSetup(ent)
+            p:OnSetup(ent, dat)
         end
     end
 end
