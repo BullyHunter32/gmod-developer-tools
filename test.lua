@@ -1,7 +1,8 @@
-local body = ClientsideModel("models/weapons/w_deagle.mdl")
-body.posOffset = Vector(0, 0, 0)
-body.angOffset = Angle(0, 0, 0)
-function body:UpdatePos()
+local w_ak101 = ClientsideModel("models/weapons/w_ak101.mdl")
+-- w_ak101.Parent = ... (Not required)
+w_ak101.posOffset = Vector(0, 0, 0)
+w_ak101.angOffset = Angle(0, 0, 0)
+function w_ak101:UpdatePos()
     local parent = self.Parent
     local pos, ang = self:GetPos(), self:GetAngles()
     if parent then
@@ -21,11 +22,11 @@ function body:UpdatePos()
     self:SetAngles(ang)
 end
 
-local riflerail = ClientsideModel("models/jarheads/weapons/attachments/rifle_rail_2.mdl")
-riflerail.Parent = body
-riflerail.posOffset = Vector(0, 1.2617242336273, 6.2280855178833)
-riflerail.angOffset = Angle(0, 0, 0)
-function riflerail:UpdatePos()
+local rifle_eotech = ClientsideModel("models/jarheads/weapons/attachments/rifle_eotech.mdl")
+-- rifle_eotech.Parent = ... (models/jarheads/weapons/attachments/rifle_rail_2.mdl)
+rifle_eotech.posOffset = Vector(0, -0.55000001192093, -0.20000000298023)
+rifle_eotech.angOffset = Angle(0, 0, 0)
+function rifle_eotech:UpdatePos()
     local parent = self.Parent
     local pos, ang = self:GetPos(), self:GetAngles()
     if parent then
@@ -45,11 +46,11 @@ function riflerail:UpdatePos()
     self:SetAngles(ang)
 end
 
-local scoperail = ClientsideModel("models/jarheads/weapons/attachments/scope_rail_2.mdl")
-scoperail.Parent = riflerail
-scoperail.posOffset = Vector(0, 0.65770727396011, -0.14764857292175)
-scoperail.angOffset = Angle(0, 0, 0)
-function scoperail:UpdatePos()
+local rifle_rail_2 = ClientsideModel("models/jarheads/weapons/attachments/rifle_rail_2.mdl")
+-- rifle_rail_2.Parent = ... (models/weapons/w_ak101.mdl)
+rifle_rail_2.posOffset = Vector(0, -2.356409072876, 8.0875682830811)
+rifle_rail_2.angOffset = Angle(0, 0, 0)
+function rifle_rail_2:UpdatePos()
     local parent = self.Parent
     local pos, ang = self:GetPos(), self:GetAngles()
     if parent then
@@ -69,11 +70,11 @@ function scoperail:UpdatePos()
     self:SetAngles(ang)
 end
 
-local scope = ClientsideModel("models/jarheads/weapons/attachments/scope_pm2.mdl")
-scope.Parent = scoperail
-scope.posOffset = Vector(0, 0.26328992843628, 0.5271680355072)
-scope.angOffset = Angle(0, 0, 0)
-function scope:UpdatePos()
+local stock_scarl = ClientsideModel("models/jarheads/weapons/attachments/stock_scarl.mdl")
+-- stock_scarl.Parent = ... (models/weapons/w_ak101.mdl)
+stock_scarl.posOffset = Vector(0.13976898789406, -13.210072517395, 2.0694127082825)
+stock_scarl.angOffset = Angle(0, 0, 0)
+function stock_scarl:UpdatePos()
     local parent = self.Parent
     local pos, ang = self:GetPos(), self:GetAngles()
     if parent then
@@ -93,11 +94,11 @@ function scope:UpdatePos()
     self:SetAngles(ang)
 end
 
-local stock = ClientsideModel("models/jarheads/weapons/components/870_stock.mdl")
-stock.Parent = body
-stock.posOffset = Vector(0, -9.7307119369507, 2.523815870285)
-stock.angOffset = Angle(0, 0, 0)
-function stock:UpdatePos()
+local 76251_20_2 = ClientsideModel("models/jarheads/weapons/magazines/76251_20_2.mdl")
+-- 76251_20_2.Parent = ... (models/weapons/w_ak101.mdl)
+76251_20_2.posOffset = Vector(0, -2.1158220767975, 2.4837911128998)
+76251_20_2.angOffset = Angle(0, 0, 0)
+function 76251_20_2:UpdatePos()
     local parent = self.Parent
     local pos, ang = self:GetPos(), self:GetAngles()
     if parent then
@@ -117,11 +118,11 @@ function stock:UpdatePos()
     self:SetAngles(ang)
 end
 
-local barrel = ClientsideModel("models/jarheads/weapons/components/mp510_barrel.mdl")
-barrel.Parent = body
-barrel.posOffset = Vector(0, 10.596905708313, 4.8447232246399)
-barrel.angOffset = Angle(0, 0, 0)
-function barrel:UpdatePos()
+local suppressor_12733 = ClientsideModel("models/jarheads/weapons/attachments/suppressor_12733.mdl")
+-- suppressor_12733.Parent = ... (models/weapons/w_ak101.mdl)
+suppressor_12733.posOffset = Vector(0, 21.055541992188, 5.191162109375)
+suppressor_12733.angOffset = Angle(0, 0, 0)
+function suppressor_12733:UpdatePos()
     local parent = self.Parent
     local pos, ang = self:GetPos(), self:GetAngles()
     if parent then
@@ -141,11 +142,11 @@ function barrel:UpdatePos()
     self:SetAngles(ang)
 end
 
-local suppressor = ClientsideModel("models/jarheads/weapons/attachments/suppressor_76251.mdl")
-suppressor.Parent = barrel
-suppressor.posOffset = Vector(0, 8.7231931686401, -0.37355053424835)
-suppressor.angOffset = Angle(0, 0, 0)
-function suppressor:UpdatePos()
+local mp5k_vertgrip = ClientsideModel("models/jarheads/weapons/components/mp5k_vertgrip.mdl")
+-- mp5k_vertgrip.Parent = ... (models/weapons/w_ak101.mdl)
+mp5k_vertgrip.posOffset = Vector(0.075712241232395, 4.8579931259155, 1.6198259592056)
+mp5k_vertgrip.angOffset = Angle(0, 0, 0)
+function mp5k_vertgrip:UpdatePos()
     local parent = self.Parent
     local pos, ang = self:GetPos(), self:GetAngles()
     if parent then
@@ -165,47 +166,3 @@ function suppressor:UpdatePos()
     self:SetAngles(ang)
 end
 
-local magazine = ClientsideModel("models/jarheads/weapons/magazines/85870_5.mdl")
-magazine.Parent = body
-magazine.posOffset = Vector(0, 2.3818862438202, 1.9979751110077)
-magazine.angOffset = Angle(0, 0, 0)
-function magazine:UpdatePos()
-    local parent = self.Parent
-    local pos, ang = self:GetPos(), self:GetAngles()
-    if parent then
-        pos = parent:GetPos()
-        ang = parent:GetAngles()
-
-        pos = pos + ang:Forward()*self.posOffset.x
-        pos = pos + ang:Right()*self.posOffset.y
-        pos = pos + ang:Up()*self.posOffset.z
-
-        ang:RotateAroundAxis(ang:Forward(), self.angOffset.x)
-        ang:RotateAroundAxis(ang:Right(), self.angOffset.y)
-        ang:RotateAroundAxis(ang:Up(), self.angOffset.z)
-    end
-
-    self:SetPos(pos)
-    self:SetAngles(ang)
-end
-
-
-
-hook.Add("PostDrawOpaqueRenderables", "", function()
-    body:SetPos(LocalPlayer():GetShootPos() + LocalPlayer():GetAimVector()*30)
-    body:SetAngles(Angle(0, CurTime()*32, 0))
-    riflerail:UpdatePos()
-    scoperail:UpdatePos()
-    scope:UpdatePos()
-    stock:UpdatePos()
-    barrel:UpdatePos()
-    suppressor:UpdatePos()
-    magazine:UpdatePos()
-end)
-
-concommand.Add("purge", function()
-    for k,v in ipairs(ents.FindByClass("class C_BaseFlex")) do
-        v:Remove()
-    end
-    hook.Remove("PostDrawOpaqueRenderables", "")
-end)
