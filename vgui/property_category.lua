@@ -88,6 +88,7 @@ local types = {
         input:Dock(FILL)
         input:SetText("0, 0, 0")
         input.OnValueChange = function(pnl, txt)
+            txt = string.Replace(txt, " ", "")
             local x, y, z = txt:match("([%-%d%g]+),([%-%d%g]+),([%-%d%g]+)")
             x = tonumber(x) or 0
             y = tonumber(y) or 0
@@ -95,10 +96,69 @@ local types = {
             fnCallback(pnl, Angle(x,y,z))
         end
         return input
+    end,
+    ["Float"] = function(self, fnCallback)
+        local input = self.Header:Add("DTextEntry")
+        input:Dock(FILL)
+        input:SetText("1")
+        input.AllowInput = function(pnl, char)
+            return tonumber(char) == nil and self:GetText():find(".") == nil
+        end
+        input.OnValueChange = function(pnl, txt)
+            if txt == "" then
+                pnl:SetText("1")
+            end
+            fnCallback(pnl, tonumber(pnl:GetText()) or 1)
+        end
+        return input
+    end,
+    ["Integer"] = function(self, fnCallback)
+        local input = self.Header:Add("DTextEntry")
+        input:Dock(FILL)
+        input:SetText("1")
+        input.AllowInput = function(pnl, char)
+            return tonumber(char) == nil
+        end
+        input.OnValueChange = function(pnl, txt)
+            if txt == "" then
+                pnl:SetText("1")
+            end
+            fnCallback(pnl, tonumber(pnl:GetText()) or 1)
+        end
+        return input
+    end,
+    ["Object"] = function(self, fnCallback, master)
+        local input = self.Header:Add("Developer.ComboBox")
+        input:Dock(FILL)
+        function input:GetSelectedName(selectedData)
+            if selectedData and selectedData.name then
+                return selectedData.name
+            end
+            return "Invalid"
+        end
+        function input:GetOptions()
+            local options = {
+                {
+                    name = "None",
+                    data = nil
+                }
+            }
+            for k,v in ipairs(master.Models) do
+                table.insert(options, {
+                    name = v.name,
+                    data = v
+                })
+            end
+            return options
+        end
+        function input:OnSelected(dat)
+            fnCallback(pnl, dat)
+        end
+        return input
     end
 }
 
-function PANEL:AddProperty(sName, sType, fnSetup, fnCallback)
+function PANEL:AddProperty(sName, sType, fnSetup, fnCallback, master)
     fnCallback = fnCallback or function()end
 
     self.iProps = self.iProps + 1
@@ -114,7 +174,7 @@ function PANEL:AddProperty(sName, sType, fnSetup, fnCallback)
     pnl.fnSetup = fnSetup
     if type then
         print("creating vector stuff")
-        pnl.Input = type(pnl, fnCallback)
+        pnl.Input = type(pnl, fnCallback, master)
     end
     table.insert(self.tProps, pnl)
 end

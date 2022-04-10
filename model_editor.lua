@@ -9,7 +9,7 @@ local mat_blind = Material("developer/eye_blind.png")
 local mat_eye = Material("developer/eye.png")
 local color_eye = Color(235, 239, 245)
 local color_blind = Color(150, 150, 160)
-
+local color_select_highlight = Color(185, 105, 20)
 function PANEL:Init()
     self:SetIsVisible(true)
     self.VisibilityToggle = self:Add("DButton")
@@ -137,14 +137,21 @@ function PANEL:Init()
     self.ModelRenderer.Paint = function(pnl, w, h)
         self:RenderModels(w, h, pnl)
     end
+    -- hook.Add("PreDrawHalos", self.ModelRenderer, function()
+    --     if IsValid(self.selected) then
+    --         halo.Add({self.selected}, color_select_highlight, 2, 2, 2 )
+    --     end
+    -- end)
     self.ModelRenderer.OnMousePressed = function(pnl, key)
         if self.m_bDraggingEnt then
             if key == MOUSE_LEFT then
                 self.m_bDraggingEnt = false 
+                self.m_vecDragOffset = nil
                 self.dragAxis = nil
                 return
             elseif key == MOUSE_RIGHT then
-                self.m_DraggingEnt:SetPos(self.m_vecDragOrigin)
+                -- self.m_DraggingEnt:SetPos(self.m_vecDragOrigin)
+                self.m_DraggingEnt.vecPos = self.m_vecDragOrigin
                 self:SetupProps(self.m_DraggingEnt)
                 self.selected = nil
                 self.m_bDraggingEnt = false
@@ -162,8 +169,8 @@ function PANEL:Init()
             local cX, cY = GetCursorPos(pX, pY)
             
             local fov = 75
-            local diffX = ((cenX-cX)/fov)*4
-            local diffY = ((cenY-cY)/fov)*4
+            local diffX = ((cenX-cX)/w)*fov
+            local diffY = ((cenY-cY)/h)*fov
 
             local dir = self:GetCamAng():Forward() - (self:GetCamAng():Right() * math.rad(diffX)) + (self:GetCamAng():Up() * math.rad(diffY))
 
@@ -178,7 +185,7 @@ function PANEL:Init()
 
             return
         end
-        if key ~= MOUSE_MIDDLE then return end
+        if key ~= MOUSE_MIDDLE and key ~= MOUSE_RIGHT then return end
         pnl.m_bRotating = true
         pnl:MouseCapture(true)
     end
@@ -214,7 +221,8 @@ function PANEL:Init()
                 newPos = pos - self:GetCamAng():Right()*diffX + self:GetCamAng():Up()*diffY
             end
 
-            self.m_DraggingEnt:SetPos(newPos)
+            -- self.m_DraggingEnt:SetPos(newPos)
+            self.m_DraggingEnt.vecPos = newPos
             self:SetupProps(self.m_DraggingEnt)
 
             local bReset = false
@@ -279,7 +287,7 @@ function PANEL:Init()
     self.ModelRenderer.FocusOnEnt = function(pnl, ent)
         local mins, maxs = ent:GetRenderBounds()
         local size = math.max(mins.x, mins.y, mins.z, maxs.x, maxs.y, maxs.z)
-        self:SetCamDistance(size+35)
+        self:SetCamDistance(size*2)
         self:SetLookAt(ent:GetPos() + ((mins + maxs)/2))
     end
 
@@ -299,24 +307,85 @@ function PANEL:Init()
     self:AddMenuOption("File", "Save", {})
     self:AddMenuOption("File", "Open Recent", {})
     self:AddMenuOption("File", "Open Backup", {})
+    self:AddMenuOption("File", "Close", {
+        DoClick = function()
+            self:Remove()
+        end
+    })
 
     self:AddMenuOption("Edit", "Undo", {})
     self:AddMenuOption("Edit", "Copy", {})
     self:AddMenuOption("Edit", "Paste", {})
 
+    self:AddMenuOption("View", "Wireframe Boxes", {
+        toggleable = true,
+        optionId = "modeledit_wireframe"
+    })
+
+    self:AddMenuOption("Export", "Quick Export", {
+        DoClick = function()
+            local code = ""
+            for k,v in ipairs(self.Models) do
+                local c = [[
+local {variableName} = ClientsideModel("{model}")
+-- {variableName}.Parent = ... ({parentModel})
+{variableName}.posOffset = {posOffset}
+{variableName}.angOffset = {angOffset}
+function {variableName}:UpdatePos()
+    local parent = self.Parent
+    local pos, ang = self:GetPos(), self:GetAngles()
+    if parent then
+        pos = parent:GetPos()
+        ang = parent:GetAngles()
+
+        pos = pos + ang:Right()*self.posOffset.x
+        pos = pos + ang:Forward()*self.posOffset.y
+        pos = pos + ang:Up()*self.posOffset.z
+
+        ang:RotateAroundAxis(ang:Right(), self.angOffset.x)
+        ang:RotateAroundAxis(ang:Forward(), self.angOffset.y)
+        ang:RotateAroundAxis(ang:Up(), self.angOffset.z)
+    end
+
+    self:SetPos(pos)
+    self:SetAngles(ang)
+end
+
+]]
+                local varName = v.name:Replace(" ", "_")
+                if v.name == v.model then
+                    varName = v.model:match("([^/]+)%.mdl$") or v.name
+                end
+                local variables = {
+                    ["variableName"] = varName,
+                    ["model"] = v.model,
+                    ["posOffset"] = ("Vector(%s, %s, %s)"):format(
+                        v.csEnt.vecPos.x, v.csEnt.vecPos.y, v.csEnt.vecPos.z
+                    ),
+                    ["angOffset"] = ("Angle(%s, %s, %s)"):format(
+                        v.csEnt.angAngles.x, v.csEnt.angAngles.y, v.csEnt.angAngles.z
+                    ),
+                    ["parentModel"] = v.csEnt.parentObject and v.csEnt.parentObject.model or "Not required",
+                }
+
+                c = c:gsub("{(.-)}", function(code)
+                    return variables[code] or code
+                end)
+                code = code .. c
+            end
+            SetClipboardText(code)
+        end
+    })
+
     self.PropertyTypes = {}
 
-    self:AddPropertyType("Transform", "Scale", "Vector", function(this, ent)
-        local pos = ent:GetPos()
-        local txt = string.format("%.2f, %.2f, %.2f", pos.x, pos.y, pos.z)
-        this.Input:SetText(txt)
-    end)
     self:AddPropertyType("Transform", "Position", "Vector", function(this, ent)
         local pos = ent:GetPos()
         local txt = string.format("%.2f, %.2f, %.2f", pos.x, pos.y, pos.z)
         this.Input:SetText(txt)
     end, function(_, vec)
-        self.selected:SetPos(vec)
+        -- self.selected:SetPos(vec)
+        self.selected.vecPos = vec
     end)
 
     self:AddPropertyType("Transform", "Angle", "Angle", function(this, ent)
@@ -324,7 +393,29 @@ function PANEL:Init()
         local txt = string.format("%.2f, %.2f, %.2f", ang.x, ang.y, ang.z)
         this.Input:SetText(txt)
     end, function(this, ang)
+        self.selected.angAngles = ang
         self.selected:SetAngles(ang)
+    end)
+
+    self:AddPropertyType("Transform", "Scale", "Float", function(this, ent)
+        local scale = ent:GetModelScale()
+        this.Input:SetText(scale)
+    end, function(this, scale)
+        self.selected:SetModelScale(scale, 0)
+    end)
+
+    self:AddPropertyType("Parent", "Object", "Object", function(this, ent)
+        this.Input:SetSelected(ent.parentObject or nil)
+    end, function(this, selected)
+        self.selected.parentObject = selected
+        PrintTable(self.selected.parentObject or {"L"})
+    end)
+
+    self:AddPropertyType("Parent", "Bone", "Float", function(this, ent)
+        local bone = ent.parentBone
+        this.Input:SetText(bone or "0")
+    end, function(this, bone)
+        self.selected.parentBone = bone
     end)
 
     self.Models = {}
@@ -339,7 +430,7 @@ function PANEL:AddPropertyType(sCategory, sName, sType, fnSetup, fnCallback)
         pnl:SetName(sCategory)
         pnl:SetCollapsible(true)
     end
-    self.PropertyTypes[sCategory]:AddProperty(sName, sType, fnSetup, fnCallback)
+    self.PropertyTypes[sCategory]:AddProperty(sName, sType, fnSetup, fnCallback, self)
 end
 
 function PANEL:SelectEntity(ent)
@@ -421,6 +512,8 @@ function PANEL:AddModel(mdl)
     }
     dat.csEnt:SetNoDraw(true)
     dat.csEnt:SetPos(Vector())
+    dat.csEnt.vecPos = Vector()
+    dat.csEnt.angAngles = Angle()
 
     table.insert(self.Models, dat)
     local pnl = self.Elements:Add("Developer.ModelBrowserElement")
@@ -432,15 +525,33 @@ function PANEL:AddModel(mdl)
     pnl.OnClick = function(pnl)
         self:SelectEntity(pnl.Data.csEnt)
     end
-    -- pnl.data = self.Models[i]
-    -- pnl.DoRightClick = function(pnl)
-    --     local menu = DermaMenu(false, pnl)
-    --     menu:AddOption("Rename", function()
-    --         Derma_StringRequest("Rename Item", "Enter the new name", pnl.data.name, function(txt)
-    --             pnl.data.name = txt
-    --         end, function() end, "Confirm", "Abort")
-    --     end)
-    -- end
+    pnl.DoRightClick = function(pnl)
+        local x, y = pnl:LocalToScreen()
+        local w, h = pnl:GetSize()
+        local menu = DermaMenu()
+        menu:SetPos(x, y + h)
+        menu:MakePopup()
+        menu:AddOption("Rename", function()
+            Derma_StringRequest("Rename Item", "Enter the new name", dat.name, function(txt)
+                dat.name = txt
+            end, function() end, "Confirm", "Abort")
+        end)
+        menu:AddSpacer()
+        menu:AddOption("Delete", function()
+            Derma_Query("You sure?", "Delete", "Yes", function()
+                for i = 1, #self.Models do
+                    local d = self.Models[i]
+                    if d.csEnt == dat.csEnt then
+                        d.panel:Remove()
+                        d.csEnt:Remove()
+                        table.remove(self.Models, i)
+                        break
+                    end
+                end
+
+            end, "No")
+        end)
+    end
 end
 
 function PANEL:InitSizes(w, h)
@@ -469,6 +580,32 @@ function PANEL:CreateMenuCategory(sName)
         end
         draw.SimpleText(sName, "Developer.Menu", w/2, h/2, col, 1, 1)
     end
+    btn.DoClick = function(pnl)
+        local x,y = pnl:LocalToScreen()
+        local w, h = pnl:GetSize()
+        local menu = DermaMenu()
+        menu:MakePopup()
+        menu:SetPos(x, y + h)
+        local options = self.MenuOptions[sName]
+        for k, v in pairs(options or {}) do
+            local setting = Developer.Settings[v.optionId]
+            local op = menu:AddOption(v.Name, function(pnl)
+                if v.DoClick then
+                    v.DoClick(pnl)
+                end
+                if not setting then return end
+                if setting.type == "toggle" then
+                    pnl:ToggleCheck()
+                end
+            end) 
+            op.OnChecked = function(pnl, state)
+                setting.value = state
+            end
+            if setting then
+                op:SetChecked(setting.value)
+            end
+        end
+    end
 end
 
 function PANEL:AddMenuOption(sCategory, sName, tData)
@@ -476,6 +613,8 @@ function PANEL:AddMenuOption(sCategory, sName, tData)
         self.MenuOptions[sCategory] = {}
         local btn = self:CreateMenuCategory(sCategory)
     end
+    tData.Name = sName
+    table.insert(self.MenuOptions[sCategory], tData)
 end
 
 local matBlurScreen = Material( "pp/blurscreen" )
@@ -535,6 +674,26 @@ function PANEL:DrawModelGrid()
     render.DrawBeam(Vector(0, -5000), Vector(0, 5000), 0.3, 1, 1, color_y)
 end
 
+local function GetRenderPos(ent)
+    local entPos = ent.vecPos or Vector()
+    local entAng = ent.angAngles or Angle()
+    local renderPos = entPos
+    local renderAng = entAng
+    if ent.parentObject and IsValid(ent.parentObject.csEnt) then
+        local parent = ent.parentObject.csEnt
+        renderPos, ang = GetRenderPos(parent)
+        renderPos = renderPos + ang:Right()*entPos.x
+        renderPos = renderPos + ang:Forward()*entPos.y
+        renderPos = renderPos + ang:Up()*entPos.z
+
+        renderAng = Angle(ang.x, ang.y, ang.z)
+        renderAng:RotateAroundAxis(renderAng:Right(), entAng.x)
+        renderAng:RotateAroundAxis(renderAng:Forward(), entAng.y)
+        renderAng:RotateAroundAxis(renderAng:Up(), entAng.z)
+    end
+    return renderPos, renderAng
+end
+
 function PANEL:RenderModels(w, h, pnl)
     local camPos = self:GetCamPos()
     local camAng = self:GetCamAng()
@@ -548,29 +707,39 @@ function PANEL:RenderModels(w, h, pnl)
                     render.SetColorMaterial()
                     render.SetColorModulation(1, 0 ,0)
                 end
-                dat.csEnt:DrawModel()
-                local mins, maxs = dat.csEnt:GetRenderBounds()
-                local pos = dat.csEnt:GetPos()
-                render.DrawWireframeBox(pos, Angle(), mins, maxs, color_white)
-                render.SetColorModulation(1, 1, 1)
-            end
-        end
-        if self.lastTrace then
-            render.DrawBeam(self.lastTrace[1], self.lastTrace[1] + self.lastTrace[2] * self.lastTrace[3], 1, 1, 1, color_x)
-
-            local start = self.lastTrace[1]
-            local dir = self.lastTrace[2]
-            local distance = self.lastTrace[3]
+                local ent = dat.csEnt
+                local renderPos, renderAng = GetRenderPos(dat.csEnt)
                 
-            local pos = start
-            local inc = distance/100
-            for i = 1, distance, inc do
-                pos = pos + (dir*inc)
-                render.DrawWireframeSphere(pos, 0.1, 10, 10, color_white)
+                dat.csEnt:SetPos(renderPos)
+                dat.csEnt:SetAngles(renderAng)
+                dat.csEnt:DrawModel()
+                draw.NoTexture()
+                render.SetColorModulation(1, 1, 1)
+
+                if Developer:GetSetting("modeledit_wireframe") then
+                    local mins, maxs = dat.csEnt:GetRenderBounds()
+                    local pos = dat.csEnt:GetPos()
+                    render.DrawWireframeBox(pos, Angle(), mins, maxs, color_white)
+                end
             end
         end
+        -- if self.lastTrace then
+        --     render.DrawBeam(self.lastTrace[1], self.lastTrace[1] + self.lastTrace[2] * self.lastTrace[3], 1, 1, 1, color_x)
+
+        --     local start = self.lastTrace[1]
+        --     local dir = self.lastTrace[2]
+        --     local distance = self.lastTrace[3]
+                
+        --     local pos = start
+        --     local inc = distance/100
+        --     for i = 1, distance, inc do
+        --         pos = pos + (dir*inc)
+        --         render.DrawWireframeSphere(pos, 0.1, 10, 10, color_white)
+        --     end
+        -- end
         self:DrawModelGrid()
     cam.End3D()
+
 end 
 
 local function CheckCollision(self, pos)

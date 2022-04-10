@@ -2,6 +2,8 @@ Developer = Developer or {
     Fonts = {}
 }
 
+include("settings.lua")
+
 function Developer:Scale(x)
     return x * (1000/ScrH())
 end
