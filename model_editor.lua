@@ -328,7 +328,7 @@ function PANEL:Init()
             for k,v in ipairs(self.Models) do
                 local c = [[
 local {variableName} = ClientsideModel("{model}")
--- {variableName}.Parent = ... ({parentModel})
+{variableName}.Parent = ({parentName}) -- {parentModel}
 {variableName}.posOffset = {posOffset}
 {variableName}.angOffset = {angOffset}
 function {variableName}:UpdatePos()
@@ -366,6 +366,7 @@ end
                         v.csEnt.angAngles.x, v.csEnt.angAngles.y, v.csEnt.angAngles.z
                     ),
                     ["parentModel"] = v.csEnt.parentObject and v.csEnt.parentObject.model or "Not required",
+                    ["parentName"] = v.csEnt.parentObject and v.csEnt.parentObject.name or "None",
                 }
 
                 c = c:gsub("{(.-)}", function(code)
@@ -384,7 +385,6 @@ end
         local txt = string.format("%.2f, %.2f, %.2f", pos.x, pos.y, pos.z)
         this.Input:SetText(txt)
     end, function(_, vec)
-        -- self.selected:SetPos(vec)
         self.selected.vecPos = vec
     end)
 
@@ -404,7 +404,7 @@ end
     end)
 
     self:AddPropertyType("Parent", "Object", "Object", function(this, ent)
-        this.Input:SetSelected(ent.parentObject or nil)
+        this.Input:SetSelected(ent.parentObject)
     end, function(this, selected)
         self.selected.parentObject = selected
         PrintTable(self.selected.parentObject or {"L"})
@@ -415,6 +415,25 @@ end
         this.Input:SetText(bone or "0")
     end, function(this, bone)
         self.selected.parentBone = bone
+    end)
+
+    self:AddPropertyType("Animations", "Sequence", "ComboBox", function(this, ent)
+        this.Input:SetSelected(ent.animSequence)
+        return function()
+            local sequences = {}
+            local x = 0
+            for i = 0, ent:GetSequenceCount() do
+                local seqInfo = ent:GetSequenceInfo(i)
+                x = x + 1
+                sequences[x] = {
+                    name = seqInfo.label,
+                    dat = seqInfo
+                }
+            end
+            return sequences
+        end,
+    end, function(this, sequence)
+        ent.animSequence = sequence
     end)
 
     self.Models = {}
