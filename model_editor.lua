@@ -1,5 +1,46 @@
 include("developer.lua")
 
+local function SaveScene(name, models)
+    local data = {
+        elements = {},
+        props = {}
+    }
+    for k,v in ipairs(models) do
+        local anim = v.csEnt.animSequence
+        anim = anim and anim.index
+        table.insert(data.elements, {
+            name = v.name,
+            model = v.model,
+            pos = v.csEnt.vecPos,
+            ang = v.csEnt.angAngles,
+            entity = v.csEnt,
+            sequence = anim
+        })
+    end
+
+    for k,v in ipairs(data.elements) do
+        local parent = v.entity.parentObject
+        if parent and IsValid(parent.csEnt) then
+            for i, dat in ipairs(data.elements) do
+                local ent = dat.entity
+                if parent.csEnt == ent then
+                    local bone = v.entity.parentBone
+                    bone = bone and bone.boneid
+                    data.props[k] = {
+                        parent = i,
+                        bone = bone,
+                    }
+                end
+            end
+        end
+    end
+
+    file.Write("developer/"..name..".json", util.TableToJSON(data, true))
+end
+
+-- Forward Declarations
+local GetRenderPos
+
 local PANEL = {}
 
 AccessorFunc(PANEL, "m_bVisible", "IsVisible", FORCE_BOOL)
@@ -72,6 +113,40 @@ end
 
 vgui.Register("Developer.ModelBrowserElement", PANEL, "DButton")
 
+local function GetAngle(x, y, z, w)
+    local squ;
+    local sqx;
+    local sqy;
+    local sqz;
+    local sarg;
+    sqx = x * x;
+    sqy = y * y;
+    sqz = z * z;
+    squ = w * w;
+    sarg = -2 * (x * z - w * y);
+
+    // If the pitch angle is PI/2 or -PI/2, we can only compute
+    // the sum roll + yaw.  However, any combination that gives
+    // the right sum will produce the correct orientation, so we
+    // set rollX = 0 and compute yawZ.
+
+    local pitchY, rollX, yawZ = 0, 0, 0
+    if (sarg <= -0.99999) then
+        pitchY = -0.5 * math.pi;
+        rollX = 0;
+        yawZ = 2 * math.atan2(x, -y);
+    elseif (sarg >= 0.99999) then
+        pitchY = 0.5 * math.pi;
+        rollX = 0;
+        yawZ = 2 * math.atan2(-x, y);
+    else
+        pitchY = math.asin(sarg);
+        rollX = math.atan2(2 * (y * z + w * x), squ - sqx - sqy + sqz);
+        yawZ = math.atan2(2 * (x * y + w * z), squ + sqx - sqy - sqz);
+    end
+    return rollX, pitchY, yawZ
+end
+
 local PANEL = {}
 
 AccessorFunc(PANEL, "m_vecCamPos", "CamPos")
@@ -137,11 +212,30 @@ function PANEL:Init()
     self.ModelRenderer.Paint = function(pnl, w, h)
         self:RenderModels(w, h, pnl)
     end
-    -- hook.Add("PreDrawHalos", self.ModelRenderer, function()
-    --     if IsValid(self.selected) then
-    --         halo.Add({self.selected}, color_select_highlight, 2, 2, 2 )
-    --     end
-    -- end)
+
+    self.ModelRenderer.CamDrag = self.ModelRenderer:Add("DButton")
+    self.ModelRenderer.CamDrag.OnMousePressed = function(pnl, key)
+        if key == MOUSE_LEFT then
+            self.m_bCamDragging = true
+            pnl:MouseCapture(true)
+
+            local w, h = pnl:GetSize()
+    
+            local rcX, rcY = pnl:LocalToScreen()
+            rcX = rcX + w*0.5
+            rcY = rcY + h*0.5
+            input.SetCursorPos(rcX, rcY)
+        end
+    end
+    self.ModelRenderer.CamDrag.OnMouseReleased = function(pnl, key)
+        self.m_bCamDragging = false
+        pnl:MouseCapture(false)
+    end
+
+    self.ModelRenderer.CamDrag.OnCursorMoved = function(pnl, x, y)
+     
+    end
+
     self.ModelRenderer.OnMousePressed = function(pnl, key)
         if self.m_bDraggingEnt then
             if key == MOUSE_LEFT then
@@ -202,7 +296,28 @@ function PANEL:Init()
         local cx, cy = GetCursorPos(pX, pY)
         local w, h = pnl:GetSize()
 
-        if self.m_bDraggingEnt then
+        if self.m_bCamDragging then
+            local w, h = pnl.CamDrag:GetSize()
+            local x, y = input.GetCursorPos()
+    
+            local rcX, rcY = pnl.CamDrag:LocalToScreen()
+            rcX = rcX + w*0.5
+            rcY = rcY + h*0.5
+
+            local diffX = x - rcX
+            local diffY = y - rcY
+
+            local mult = (self:GetCamDistance())*0.001
+            diffX = diffX*mult
+            diffY = diffY*mult
+
+            local curLookAt = self:GetLookAt()
+            local newLookAt = curLookAt
+            newLookAt = newLookAt + self:GetCamAng():Right()*(diffX*0.1)
+            newLookAt = newLookAt - self:GetCamAng():Up()*(diffY*0.1)
+            self:SetLookAt(newLookAt)
+
+        elseif self.m_bDraggingEnt then
             local mult = self:GetCamDistance()*0.001
             local diffX = (self.m_vecStartDragPos.x - cx)*mult
             local diffY = (self.m_vecStartDragPos.y - cy)*mult
@@ -270,8 +385,9 @@ function PANEL:Init()
         local newCamPos = Vector(
             lookAtPos.x + self:GetCamDistance()*math.sin(rot),
             lookAtPos.y + self:GetCamDistance()*math.cos(rot),
-            lookAtPos.z + self:GetCamDistance()*math.sin(vert)
-        )     
+            lookAtPos.z + self:GetCamDistance()*math.cos(vert)
+        )
+
         self:SetCamPos(newCamPos)
         self:SetCamAng((self:GetLookAt()-newCamPos):Angle())
     end
@@ -304,7 +420,11 @@ function PANEL:Init()
     self.MenuOptions = {}
     
     self:AddMenuOption("File", "Open", {})
-    self:AddMenuOption("File", "Save", {})
+    self:AddMenuOption("File", "Save", {
+        DoClick = function()
+            SaveScene("test", self.Models)
+        end
+    })
     self:AddMenuOption("File", "Open Recent", {})
     self:AddMenuOption("File", "Open Backup", {})
     self:AddMenuOption("File", "Close", {
@@ -378,6 +498,69 @@ end
         end
     })
 
+    self:AddMenuOption("Export", "Export as PNG", {
+        DoClick = function()
+            local bExported = false
+            -- local x, y = self.ModelRenderer:LocalToScreen()
+            local w, h = ScrW(), ScrH()
+            local rt = GetRenderTarget("transparent_png_export", w, h, false)
+            local renderTarget = render.GetRenderTarget()
+            local texture = Material("icon16/add.png"):GetTexture("$basetexture")
+            hook.Add("PreRender", self, function()
+                render.OverrideAlphaWriteEnable(true, true)
+                render.Clear( 0, 0, 0, 0, true )
+
+                if bExported then
+                    render.OverrideAlphaWriteEnable( false )
+                    hook.Remove("PreRender", self)
+                    return
+                end
+   
+                bExported = true
+                local camPos = self:GetCamPos()
+                local camAng = self:GetCamAng()
+            
+                cam.Start3D(camPos, camAng, 75, 0, 0, w, h)
+                    for i = 1, #self.Models do
+                        local dat = self.Models[i]
+                        if dat and IsValid(dat.csEnt) and dat.csEnt.m_bShouldDraw ~= false then
+                            if self.selected == dat.csEnt then
+                                render.SetColorMaterial()
+                                render.SetColorModulation(1, 0 ,0)
+                            end
+                            local ent = dat.csEnt
+                            local renderPos, renderAng = GetRenderPos(dat.csEnt)
+                            
+                            dat.csEnt:SetPos(renderPos)
+                            dat.csEnt:SetAngles(renderAng)
+                            dat.csEnt:DrawModel()
+                            draw.NoTexture()
+                            render.SetColorModulation(1, 1, 1)
+            
+                            if Developer:GetSetting("modeledit_wireframe") then
+                                local mins, maxs = dat.csEnt:GetRenderBounds()
+                                local pos = dat.csEnt:GetPos()
+                                render.DrawWireframeBox(pos, Angle(), mins, maxs, color_white)
+                            end
+                        end
+                    end
+                    self:DrawModelGrid()
+                cam.End3D()
+
+                local img = render.Capture({
+                    x = 0, y = 0, 
+                    w = w, h = h,
+                    format = "png",
+                    quality = 100,
+                    alpha = true
+                })
+                file.Write("dev_export.png", img)
+
+                return true
+            end)
+        end
+    })
+
     self.PropertyTypes = {}
 
     self:AddPropertyType("Transform", "Position", "Vector", function(this, ent)
@@ -407,33 +590,63 @@ end
         this.Input:SetSelected(ent.parentObject)
     end, function(this, selected)
         self.selected.parentObject = selected
-        PrintTable(self.selected.parentObject or {"L"})
+        self.selected.parentBone = nil
+        self:SetupProps(self.selected)
     end)
 
-    self:AddPropertyType("Parent", "Bone", "Float", function(this, ent)
-        local bone = ent.parentBone
-        this.Input:SetText(bone or "0")
+    self:AddPropertyType("Parent", "Bone", "ComboBox", function(this, ent)
+        this.Input:SetSelected(ent.parentBone)
+        return function()
+            local parent = ent.parentObject
+            if not parent or not IsValid(parent.csEnt) then
+                return
+            end
+            parent = parent.csEnt
+
+            local bones = {}
+            local x = 0
+            for i = 0, parent:GetBoneCount() do
+                x = x + 1
+                local name = string.format("[%d] %s", i, parent:GetBoneName(i))
+                bones[x] = {
+                    name = name,
+                    data = {
+                        name = name,
+                        boneid = i
+                    }
+                }
+                ::skip::    
+            end
+            return bones
+        end
     end, function(this, bone)
         self.selected.parentBone = bone
+        self:SetupProps(self.selected)
     end)
 
     self:AddPropertyType("Animations", "Sequence", "ComboBox", function(this, ent)
         this.Input:SetSelected(ent.animSequence)
         return function()
+            print(ent, " has ", ent:GetSequenceCount())
             local sequences = {}
             local x = 0
             for i = 0, ent:GetSequenceCount() do
                 local seqInfo = ent:GetSequenceInfo(i)
+                if not seqInfo then
+                    goto skip
+                end
                 x = x + 1
+                seqInfo.index = i
                 sequences[x] = {
                     name = seqInfo.label,
-                    dat = seqInfo
+                    data = seqInfo
                 }
+                ::skip::
             end
             return sequences
-        end,
+        end
     end, function(this, sequence)
-        ent.animSequence = sequence
+        self.selected.animSequence = sequence
     end)
 
     self.Models = {}
@@ -673,33 +886,44 @@ function PANEL:OnRemove()
 end
 
 function PANEL:OnMouseWheeled(delta)
-    local dist = self:GetCamDistance() - delta*5
+    local dist = math.max(self:GetCamDistance() - delta*5, 2)
     self:SetCamDistance(dist)
 end
 
-local color_x = Color(255, 0, 0, 40)
-local color_y = Color(0, 255, 0, 40)
-local color_m = Color(90, 90, 90, 80) -- misc
+local color_x = Color(255, 0, 0, 20)
+local color_y = Color(0, 255, 0, 20)
+local color_m = Color(90, 90, 90, 40) -- misc
 function PANEL:DrawModelGrid()
     render.SetColorMaterial()
-    for x = -5000, 5000, 100 do
-        render.DrawBeam(Vector(x, -5000), Vector(x, 5000), 0.1, 1, 1, color_m)
+    if Developer:GetSetting("modeledit_drawgrid") then
+        for x = -5000, 5000, 100 do
+            render.DrawBeam(Vector(x, -5000), Vector(x, 5000), 0.1, 1, 1, color_m)
+        end
+        for y = -5000, 5000, 100 do
+            render.DrawBeam(Vector(-5000, y), Vector(5000, y), 0.1, 1, 1, color_m)
+        end
+        render.DrawBeam(Vector(-5000, 0), Vector(5000, 0), 0.3, 1, 1, color_x)
+        render.DrawBeam(Vector(0, -5000), Vector(0, 5000), 0.3, 1, 1, color_y)
     end
-    for y = -5000, 5000, 100 do
-        render.DrawBeam(Vector(-5000, y), Vector(5000, y), 0.1, 1, 1, color_m)
+
+    if Developer:GetSetting("modeledit_drawfocuspoint") then
+        render.DrawWireframeSphere(self:GetLookAt(), 0.33, 7, 6, color_white)
     end
-    render.DrawBeam(Vector(-5000, 0), Vector(5000, 0), 0.3, 1, 1, color_x)
-    render.DrawBeam(Vector(0, -5000), Vector(0, 5000), 0.3, 1, 1, color_y)
 end
 
-local function GetRenderPos(ent)
+function GetRenderPos(ent)
     local entPos = ent.vecPos or Vector()
     local entAng = ent.angAngles or Angle()
     local renderPos = entPos
     local renderAng = entAng
     if ent.parentObject and IsValid(ent.parentObject.csEnt) then
         local parent, ang = ent.parentObject.csEnt
-        renderPos, ang = GetRenderPos(parent)
+        -- print("parent: ", parent, parent.parentBone, parent.parentBone.boneid)
+        if ent.parentBone and ent.parentBone.boneid then
+            renderPos, ang = parent:GetBonePosition(ent.parentBone.boneid)
+        else
+            renderPos, ang = GetRenderPos(parent)
+        end
         renderPos = renderPos + ang:Forward()*entPos.x
         renderPos = renderPos + ang:Right()*entPos.y
         renderPos = renderPos + ang:Up()*entPos.z
@@ -728,6 +952,11 @@ function PANEL:RenderModels(w, h, pnl)
                 local ent = dat.csEnt
                 local renderPos, renderAng = GetRenderPos(dat.csEnt)
                 
+                if dat.csEnt.animSequence then
+                    dat.csEnt:ResetSequence(dat.csEnt.animSequence.label)
+                    dat.csEnt:FrameAdvance(0.4)
+                end
+
                 dat.csEnt:SetPos(renderPos)
                 dat.csEnt:SetAngles(renderAng)
                 dat.csEnt:DrawModel()
@@ -741,20 +970,20 @@ function PANEL:RenderModels(w, h, pnl)
                 end
             end
         end
-        -- if self.lastTrace then
-        --     render.DrawBeam(self.lastTrace[1], self.lastTrace[1] + self.lastTrace[2] * self.lastTrace[3], 1, 1, 1, color_x)
+        if self.lastTrace then
+            render.DrawBeam(self.lastTrace[1], self.lastTrace[1] + self.lastTrace[2] * self.lastTrace[3], 1, 1, 1, color_x)
 
-        --     local start = self.lastTrace[1]
-        --     local dir = self.lastTrace[2]
-        --     local distance = self.lastTrace[3]
+            -- local start = self.lastTrace[1]
+            -- local dir = self.lastTrace[2]
+            -- local distance = self.lastTrace[3]
                 
-        --     local pos = start
-        --     local inc = distance/100
-        --     for i = 1, distance, inc do
-        --         pos = pos + (dir*inc)
-        --         render.DrawWireframeSphere(pos, 0.1, 10, 10, color_white)
-        --     end
-        -- end
+            -- local pos = start
+            -- local inc = distance/100
+            -- for i = 1, distance, inc do
+            --     pos = pos + (dir*inc)
+            --     render.DrawWireframeSphere(pos, 0.1, 10, 10, color_white)
+            -- end
+        end
         self:DrawModelGrid()
     cam.End3D()
 

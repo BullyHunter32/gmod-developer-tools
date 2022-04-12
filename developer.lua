@@ -3,6 +3,7 @@ Developer = Developer or {
 }
 
 include("settings.lua")
+include("filesystem.lua")
 
 function Developer:Scale(x)
     return x * (1000/ScrH())

@@ -17,3 +17,13 @@ Add("modeledit_wireframe", {
     default = false,
     type = "toggle"
 })
+
+Add("modeledit_drawgrid", {
+    default = true,
+    type = "toggle"
+})
+
+Add("modeledit_drawfocuspoint", {
+    default = true,
+    type = "toggle"
+})

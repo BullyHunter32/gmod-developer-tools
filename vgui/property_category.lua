@@ -15,10 +15,10 @@ function PANEL:Init()
     self.CollapseBtn:Dock(LEFT)
     self.CollapseBtn:SetText("")
     self.CollapseBtn.Paint = function(pnl, w, h)
-        surface.SetDrawColor(54, 54, 60)
-        surface.DrawRect(1, 1, w, h)
+        -- surface.SetDrawColor(54, 54, 60)
+        -- surface.DrawRect(1, 1, w, h)
         if not self.m_bCollapsible then return end
-        draw.SimpleText("c", "ChatFont", w/2, h/2, color_white, 1, 1)
+        draw.SimpleText(self:IsCollapsed() and "+" or "-", "ChatFont", w/2, h/2, color_white, 1, 1)
     end
     self.CollapseBtn.DoClick = function()
         if not self.m_bCollapsible then return end
@@ -47,6 +47,8 @@ function PANEL:Init()
     self.Properties:DockPadding(13, 0, 0, 0)
     self.iProps = 0
     self.tProps = {}
+
+    self:SetCollapsible(false)
 end
 
 function PANEL:SetCollapsible(bCollapsible)
@@ -54,6 +56,7 @@ function PANEL:SetCollapsible(bCollapsible)
     if not bCollapsible then
         self:Collapse()
     end
+    self.CollapseBtn:SetVisible(bCollapsible)
 end
 
 function PANEL:GetPropertyHeight()
@@ -63,13 +66,13 @@ end
 function PANEL:SetPropWidth(w)
     for i = 1, self.iProps do
         local p = self.tProps[i]
-        print("SETTING WIDTH TO ", w)
         p.NamePanel:SetWide(w)
     end
 end
 
 local types = {
     ["Vector"] = function(self, fnCallback)
+        self:SetCollapsible(true)
         local input = self.Header:Add("DTextEntry")
         input:Dock(FILL)
         input:SetText("0, 0, 0")
@@ -155,6 +158,42 @@ local types = {
             fnCallback(pnl, dat)
         end
         return input
+    end,
+    ["ComboBox"] = function(self, fnCallback, master, fnUpdate)
+        local input = self.Header:Add("Developer.ComboBox")
+        input:Dock(FILL)
+        self.OnSetup = function(pnl, ent, dat)
+            local data
+            if isfunction(dat) then
+                data = dat(self)
+            elseif false then
+
+            end
+            input.data = data or {name = "None"}
+        end
+        function input:GetSelectedName(selectedData)
+            if selectedData == nil then
+                return "None"
+            end
+
+            if istable(selectedData) then
+                local txt = selectedData.label or selectedData.name
+                return txt
+            end
+            return tostring(selectedData)
+        end
+        input.GetOptions = function(pnl)
+            local options = pnl.data or {
+                {
+                    name = "None",
+                }
+            }
+            return options
+        end
+        function input:OnSelected(dat)
+            fnCallback(pnl, dat)
+        end
+        return input
     end
 }
 
@@ -174,7 +213,6 @@ function PANEL:AddProperty(sName, sType, fnSetup, fnCallback, master)
     local type = types[sType]
     pnl.fnSetup = fnSetup
     if type then
-        print("creating vector stuff")
         pnl.Input = type(pnl, fnCallback, master)
     end
     table.insert(self.tProps, pnl)
