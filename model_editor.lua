@@ -52,8 +52,8 @@ local function LoadScene(name, pnl)
         dat.name = v.name or "{CORRUPTED}"
         local ent = dat.csEnt
         if IsValid(ent) then
-            ent:SetPos(Vector(dat.pos))
-            ent:SetAngles(Angle(dat.ang))
+            ent.vecPos = Vector(v.pos)
+            ent.angAngles = Angle(v.ang)
             if v.sequence then
                 ent.animSequence = ent:GetSequenceInfo(v.sequence)
             end
@@ -62,12 +62,21 @@ local function LoadScene(name, pnl)
     end
 
     for k,v in pairs(data.props) do
-        local xref = elements[k]
+        local element = elements[k]
         if elements[v.parent] then
-            xref.csEnt.parentBone = v.bone
-            xref.csEnt.parentObject = elements[v.parent].csEnt
+            element.csEnt.parentObject = elements[v.parent]
+
+            if v.bone then
+                print("Bone: ", v.bone)
+                element.csEnt.parentBone = {
+                    boneid = v.bone,
+                    name = element.csEnt.parentObject.csEnt:GetBoneName(v.bone)
+                }
+            end
         end
     end
+
+    PrintTable(elements)
 end
 
 local function GetRecentSaves()
@@ -1009,7 +1018,7 @@ function PANEL:RenderModels(w, h, pnl)
     cam.Start3D(camPos, camAng, 75, x, y, w, h)
         for i = 1, #self.Models do
             local dat = self.Models[i]
-            if dat and IsValid(dat.csEnt) and dat.csEnt.m_bShouldDraw ~= false then
+            if dat and IsValid(dat.csEnt) then
                 if self.selected == dat.csEnt then
                     render.SetColorMaterial()
                     render.SetColorModulation(1, 0 ,0)
@@ -1019,7 +1028,7 @@ function PANEL:RenderModels(w, h, pnl)
                 
                 if dat.csEnt.animSequence then
                     dat.csEnt:ResetSequence(dat.csEnt.animSequence.label)
-                    dat.csEnt:FrameAdvance(0.4)
+                    -- dat.csEnt:FrameAdvance(0.4)
                 end
 
                 dat.csEnt:SetPos(renderPos)
