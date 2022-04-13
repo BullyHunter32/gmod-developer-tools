@@ -601,8 +601,7 @@ end
             
                             if Developer:GetSetting("modeledit_wireframe") then
                                 local mins, maxs = dat.csEnt:GetRenderBounds()
-                                local pos = dat.csEnt:GetPos()
-                                render.DrawWireframeBox(pos, Angle(), mins, maxs, color_white)
+                                render.DrawWireframeBox(renderPos, renderAng, mins, maxs, color_white)
                             end
                         end
                     end
@@ -1027,10 +1026,14 @@ function PANEL:RenderModels(w, h, pnl)
                 local renderPos, renderAng = GetRenderPos(dat.csEnt)
                 
                 if dat.csEnt.animSequence then
-                    dat.csEnt:ResetSequence(dat.csEnt.animSequence.label)
-                    -- dat.csEnt:FrameAdvance(0.4)
+                    local expectedSequence = dat.csEnt:LookupSequence(dat.csEnt.animSequence.label)
+                    if dat.csEnt:GetSequence() ~= expectedSequence or dat.csEnt:IsSequenceFinished() or dat.csEnt:SequenceDuration(expectedSequence) > CurTime() - (dat.csEnt.seqStart or 0) then
+                        dat.csEnt:ResetSequence(expectedSequence)
+                        dat.csEnt.seqStart = CurTime()
+                    end
                 end
 
+                dat.csEnt:FrameAdvance()
                 dat.csEnt:SetPos(renderPos)
                 dat.csEnt:SetAngles(renderAng)
                 dat.csEnt:DrawModel()
@@ -1039,8 +1042,7 @@ function PANEL:RenderModels(w, h, pnl)
 
                 if Developer:GetSetting("modeledit_wireframe") then
                     local mins, maxs = dat.csEnt:GetRenderBounds()
-                    local pos = dat.csEnt:GetPos()
-                    render.DrawWireframeBox(pos, Angle(), mins, maxs, color_white)
+                    render.DrawWireframeBox(renderPos, renderAng, mins, maxs, color_white)
                 end
             end
         end
