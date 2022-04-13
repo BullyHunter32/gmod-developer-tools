@@ -113,6 +113,8 @@ function PANEL:Think()
     local x, y = self:LocalToScreen()
     cx = cx - x
     cy = cy - y
+
+    local curPosX, curPosY = self:GetPos()
     if side == LEFT then
         local newWidth = self:GetStartSize().x + (startPos.x - cx)
         self:SetWide(newWidth)
@@ -122,6 +124,12 @@ function PANEL:Think()
         local newWidth = self:GetStartSize().x + (cx - startPos.x)
         self:SetWide(newWidth)
         self:OnResized(newWidth)
+        self:GetParent():InvalidateLayout()
+    elseif side == TOP then
+        local newHeight = self:GetStartSize().y + (startPos.y - cy)
+        self:SetTall(newHeight)
+        -- self:SetPos(curPosX, curPosY+(self:GetStartSize().y-newHeight))
+        self:OnResized(newHeight)
         self:GetParent():InvalidateLayout()
     end
 end
