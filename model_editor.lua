@@ -91,6 +91,8 @@ local function GetRecentSaves()
 end
 GetRecentSaves()
 
+local MATERIAL_WIREFRAME = Material("models/wireframe")
+
 -- Forward Declarations
 local GetRenderPos
 
@@ -217,7 +219,7 @@ end
 function PANEL:Init()
     self:SetCamPos(Vector(-90, 30, 50))
     self:SetCamAng((Vector() - self:GetCamPos()):Angle())
-    self:SetCamDistance(90)
+    self:SetCamDistance(50)
     self:SetLookAt(Vector())
     
     self.Menu = self:Add("DPanel")
@@ -343,7 +345,7 @@ function PANEL:Init()
     end
 
     local camAng = Angle()
-    local rot, vert = 0,0
+    local rot, vert = -0.55, 0.3
     self.ModelRenderer.Think = function(pnl)
         local pX, pY = pnl:LocalToScreen()
         local cx, cy = GetCursorPos(pX, pY)
@@ -438,7 +440,7 @@ function PANEL:Init()
         local newCamPos = Vector(
             lookAtPos.x + self:GetCamDistance()*math.sin(rot),
             lookAtPos.y + self:GetCamDistance()*math.cos(rot),
-            lookAtPos.z + self:GetCamDistance()*math.cos(vert)
+            lookAtPos.z + self:GetCamDistance()*math.sin(vert)
         )
 
         self:SetCamPos(newCamPos)
@@ -499,9 +501,14 @@ function PANEL:Init()
     self:AddMenuOption("Edit", "Copy", {})
     self:AddMenuOption("Edit", "Paste", {})
 
-    self:AddMenuOption("View", "Wireframe Boxes", {
+    self:AddMenuOption("View", "Wireframe Bounds", {
         toggleable = true,
         optionId = "modeledit_wireframe"
+    })
+    
+    self:AddMenuOption("View", "Wireframe Models", {
+        toggleable = true,
+        optionId = "modeledit_wireframemodels"
     })
 
     self:AddMenuOption("Export", "Quick Export", {
@@ -807,10 +814,10 @@ function PANEL:AddModel(mdl)
         self:SelectEntity(pnl.Data.csEnt)
     end
     pnl.DoRightClick = function(pnl)
-        local x, y = pnl:LocalToScreen()
+        local x, y = input.GetCursorPos()
         local w, h = pnl:GetSize()
         local menu = DermaMenu()
-        menu:SetPos(x, y + h)
+        menu:SetPos(x, y + 1)
         menu:MakePopup()
         menu:AddOption("Rename", function()
             Derma_StringRequest("Rename Item", "Enter the new name", dat.name, function(txt)
@@ -1014,6 +1021,7 @@ function PANEL:RenderModels(w, h, pnl)
     local camAng = self:GetCamAng()
 
     local x, y = pnl:LocalToScreen()
+    
     cam.Start3D(camPos, camAng, 75, x, y, w, h)
         for i = 1, #self.Models do
             local dat = self.Models[i]
@@ -1033,10 +1041,19 @@ function PANEL:RenderModels(w, h, pnl)
                     end
                 end
 
+                if Developer:GetSetting("modeledit_wireframemodels") then
+                    render.SetMaterial(MATERIAL_WIREFRAME)
+                    dat.csEnt:SetMaterial("models/wireframe")
+                else
+                    dat.csEnt:SetMaterial("")
+                end
+
                 dat.csEnt:FrameAdvance()
                 dat.csEnt:SetPos(renderPos)
                 dat.csEnt:SetAngles(renderAng)
-                dat.csEnt:DrawModel()
+                if dat.csEnt.m_bShouldDraw ~= false then
+                    dat.csEnt:DrawModel()
+                end
                 draw.NoTexture()
                 render.SetColorModulation(1, 1, 1)
 
@@ -1088,7 +1105,7 @@ function PANEL:TraceLine(tData)
     self.lastTrace = {start,dir,distance}
 
     local pos = start
-    local inc = distance/100
+    local inc = distance/333
     for i = 1, distance, inc do
         pos = pos + (dir*inc)
         local hit = CheckCollision(self, pos)

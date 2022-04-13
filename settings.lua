@@ -27,3 +27,8 @@ Add("modeledit_drawfocuspoint", {
     default = true,
     type = "toggle"
 })
+
+Add("modeledit_wireframemodels", {
+    default = true,
+    type = "toggle"
+})
