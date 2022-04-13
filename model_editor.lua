@@ -261,7 +261,7 @@ function PANEL:Init()
     self.Elements.Controls:AddButton({Icon = Material("developer/add.png")})
     self.Elements.Controls:AddButton({Icon = Material("developer/add.png")})
     self.Elements.Controls:AddButton({Icon = Material("developer/add.png")})
-
+    
     self.ModelRenderer = self:Add("Panel")
     self.ModelRenderer:Dock(FILL)
     self.ModelRenderer.Paint = function(pnl, w, h)
@@ -472,6 +472,55 @@ function PANEL:Init()
         surface.DrawLine(0, 0, 0, h)
     end
 
+    self.AnimTimeline = self:Add("Developer.SizeablePanel")
+    self.AnimTimeline:Dock(BOTTOM)
+    self.AnimTimeline:SetSizeable(false, true, false, false)
+    self.AnimTimeline.Paint = function(pnl, w, h)
+        surface.SetDrawColor(37, 42, 49)
+        surface.DrawRect(0, 0, w, h)
+        surface.SetDrawColor(0, 0, 0, 120)
+        surface.DrawLine(0, 0, w, 0)
+    end
+    self.AnimTimeline.Header = self.AnimTimeline:Add("Panel")
+    self.AnimTimeline.Header:Dock(TOP)
+    self.AnimTimeline.Header:SetTall(24)
+    self.AnimTimeline.Header:SetKeyboardInputEnabled(false)
+    self.AnimTimeline.Header.OnMousePressed = function(key)
+        self.AnimTimeline:OnMousePressed(key)
+
+    end
+    self.AnimTimeline.Header.OnMouseReleased = function(key)
+        self.AnimTimeline:OnMouseReleased(key)
+        
+    end
+    
+    self.AnimTimeline.Caret = self.AnimTimeline.Header:Add("DPanel")
+    self.AnimTimeline.Caret:SetSize(24, 24)
+    self.AnimTimeline.Caret.OnMousePressed = function(pnl, key)
+        if key == MOUSE_LEFT then
+            local cx, cy = input.GetCursorPos()
+            local px, py = pnl:GetPos()
+            pnl.m_bDragging = true
+            pnl.cursorPos = Vector(cx, cy)
+            pnl.startPos = Vector(px, py)
+            pnl:MouseCapture(true)
+        end
+    end
+    self.AnimTimeline.Caret.OnMouseReleased = function(pnl, key)
+        pnl.m_bDragging = false
+        pnl:MouseCapture(false)
+    end
+    self.AnimTimeline.Caret.Think = function(pnl, w, h)
+       if not pnl.m_bDragging then return end
+       local cx, cy = input.GetCursorPos()
+
+       local diffX = cx - pnl.cursorPos.x
+       local newPos = pnl.startPos.x + diffX
+    --    local diffY = cy - pnl.cursorPos.y    
+       pnl:SetPos(newPos, 0)
+       
+    end
+   
     self.MenuOptions = {}
     
     self:AddMenuOption("File", "Open", {})
@@ -517,7 +566,7 @@ function PANEL:Init()
             for k,v in ipairs(self.Models) do
                 local c = [[
 local {variableName} = ClientsideModel("{model}")
-{variableName}.Parent = ({parentName}) -- {parentModel}
+{variableName}.Parent = {parentName} -- {parentModel}
 {variableName}.posOffset = {posOffset}
 {variableName}.angOffset = {angOffset}
 function {variableName}:UpdatePos()
@@ -555,7 +604,7 @@ end
                         v.csEnt.angAngles.x, v.csEnt.angAngles.y, v.csEnt.angAngles.z
                     ),
                     ["parentModel"] = v.csEnt.parentObject and v.csEnt.parentObject.model or "Not required",
-                    ["parentName"] = v.csEnt.parentObject and v.csEnt.parentObject.name or "None",
+                    ["parentName"] = v.csEnt.parentObject and v.csEnt.parentObject.name or "nil",
                 }
 
                 c = c:gsub("{(.-)}", function(code)
@@ -790,6 +839,25 @@ function PANEL:OnKeyCodePressed(key)
     if key == KEY_DELETE then
         self:DeleteModel(self.selected)
     end
+
+    if key == KEY_A then
+        local menu = Developer.CreateMenu()
+        menu:AddOption("Hello!", function()
+            print("What")
+        end)
+        menu:AddOption("Hello!", function()
+            print("What")
+        end)
+        menu:AddOption("Hello!", function()
+            print("What")
+        end)
+        menu:AddOption("Hello!", function()
+            print("What")
+        end)
+        menu:AddOption("Hello!", function()
+            print("What")
+        end)
+    end
 end
 
 function PANEL:AddModel(mdl)
@@ -864,6 +932,7 @@ function PANEL:InitSizes(w, h)
     self.m_bInitializedLayout = true
     self.Elements:SetWide(w*0.12)
     self.Properties:SetWide(w*0.125)
+    self.AnimTimeline:SetTall(h*0.065)
 end
 
 function PANEL:PerformLayout(w, h)
