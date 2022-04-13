@@ -38,6 +38,50 @@ local function SaveScene(name, models)
     file.Write("developer/"..name..".json", util.TableToJSON(data, true))
 end
 
+local function LoadScene(name, pnl)
+    local fileContent = file.Read("developer/"..name..".json", "DATA")
+    local data = util.JSONToTable(fileContent)
+
+    for k,v in ipairs(pnl.Models) do
+        pnl:DeleteModel(v.csEnt)
+    end
+
+    local elements = {}
+    for k,v in ipairs(data.elements) do
+        local dat = pnl:AddModel(v.model)
+        dat.name = v.name or "{CORRUPTED}"
+        local ent = dat.csEnt
+        if IsValid(ent) then
+            ent:SetPos(Vector(dat.pos))
+            ent:SetAngles(Angle(dat.ang))
+            if v.sequence then
+                ent.animSequence = ent:GetSequenceInfo(v.sequence)
+            end
+        end
+        table.insert(elements, dat)
+    end
+
+    for k,v in pairs(data.props) do
+        local xref = elements[k]
+        if elements[v.parent] then
+            xref.csEnt.parentBone = v.bone
+            xref.csEnt.parentObject = elements[v.parent].csEnt
+        end
+    end
+end
+
+local function GetRecentSaves()
+    local files = file.Find("developer/*.json", "DATA", "datedesc")
+    local exp = {}
+    PrintTable(files)
+    for i = 1, math.min(#files, 8) do
+        local name = files[i]:match("(.-)%.")
+        exp[i] = name
+    end
+    return exp
+end
+GetRecentSaves()
+
 -- Forward Declarations
 local GetRenderPos
 
@@ -425,7 +469,16 @@ function PANEL:Init()
             SaveScene("test", self.Models)
         end
     })
-    self:AddMenuOption("File", "Open Recent", {})
+    self:AddMenuOption("File", "Open Recent", {
+        PopulateSubMenu = function(pnl)
+            local files = GetRecentSaves()
+            for i = 1, #files do
+                pnl:AddOption(files[i], function()
+                    LoadScene(files[i], self)
+                end)
+            end
+        end
+    })
     self:AddMenuOption("File", "Open Backup", {})
     self:AddMenuOption("File", "Close", {
         DoClick = function()
@@ -720,18 +773,7 @@ function PANEL:OnKeyCodePressed(key)
     end
 
     if key == KEY_DELETE then
-        if IsValid(self.selected) then
-            for i = 1, #self.Models do
-                local d = self.Models[i]
-                if d.csEnt == self.selected then
-                    d.panel:Remove()
-                    d.csEnt:Remove()
-                    table.remove(self.Models, i)
-                    self.selected = nil
-                    break
-                end
-            end
-        end
+        self:DeleteModel(self.selected)
     end
 end
 
@@ -770,18 +812,35 @@ function PANEL:AddModel(mdl)
         menu:AddSpacer()
         menu:AddOption("Delete", function()
             Derma_Query("You sure?", "Delete", "Yes", function()
-                for i = 1, #self.Models do
-                    local d = self.Models[i]
-                    if d.csEnt == dat.csEnt then
-                        d.panel:Remove()
-                        d.csEnt:Remove()
-                        table.remove(self.Models, i)
-                        break
-                    end
-                end
+                -- for i = 1, #self.Models do
+                --     local d = self.Models[i]
+                --     if d.csEnt == dat.csEnt then
+                --         d.panel:Remove()
+                --         d.csEnt:Remove()
+                --         table.remove(self.Models, i)
+                --         break
+                --     end
+                -- end
+                self:DeleteModel(dat.csEnt)
 
             end, "No")
         end)
+    end
+    return dat
+end
+
+function PANEL:DeleteModel(mdl)
+    if IsValid(mdl) then
+        for i = 1, #self.Models do
+            local d = self.Models[i]
+            if d.csEnt == mdl then
+                d.panel:Remove()
+                d.csEnt:Remove()
+                table.remove(self.Models, i)
+                mdl = nil
+                break
+            end
+        end
     end
 end
 
@@ -820,20 +879,26 @@ function PANEL:CreateMenuCategory(sName)
         local options = self.MenuOptions[sName]
         for k, v in pairs(options or {}) do
             local setting = Developer.Settings[v.optionId]
-            local op = menu:AddOption(v.Name, function(pnl)
-                if v.DoClick then
-                    v.DoClick(pnl)
+            if not v.PopulateSubMenu then
+                local op = menu:AddOption(v.Name, function(pnl)
+                    if v.DoClick then
+                        v.DoClick(pnl)
+                    end
+                    if not setting then return end
+                    if setting.type == "toggle" then
+                        pnl:ToggleCheck()
+                    end
+                end) 
+                op.OnChecked = function(pnl, state)
+                    setting.value = state
                 end
-                if not setting then return end
-                if setting.type == "toggle" then
-                    pnl:ToggleCheck()
+                if setting then
+                    op:SetChecked(setting.value)
                 end
-            end) 
-            op.OnChecked = function(pnl, state)
-                setting.value = state
-            end
-            if setting then
-                op:SetChecked(setting.value)
+            else
+                local op = menu:AddSubMenu(v.Name, function()
+                end)
+                v.PopulateSubMenu(op)
             end
         end
     end
