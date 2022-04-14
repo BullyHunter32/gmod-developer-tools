@@ -72,7 +72,6 @@ end
 
 local types = {
     ["Vector"] = function(self, fnCallback)
-        self:SetCollapsible(true)
         local input = self.Header:Add("DTextEntry")
         input:Dock(FILL)
         input:SetText("0, 0, 0")
@@ -194,6 +193,27 @@ local types = {
             fnCallback(pnl, dat)
         end
         return input
+    end,
+    ["Boolean"] = function(self, fnCallback)
+        local input = self.Header:Add("DButton")
+        AccessorFunc(input, "m_bState", "State", FORCE_BOOL)
+        input:Dock(RIGHT)
+        input:SetWide(self:GetTall())
+        input:SetText("")
+        input:SetState(false)
+        input.DoClick = function(pnl)
+            pnl:SetState(not pnl:GetState())
+            fnCallback(self, pnl:GetState())
+        end
+        input.Paint = function(pnl, w, h)
+            surface.SetDrawColor(0, 0, 0, 160)
+            surface.DrawRect(0, 0, w, h)
+            if pnl:GetState() then
+                surface.SetDrawColor(60, 210, 40)
+                surface.DrawRect(2, 2, w-4, h-4)
+            end
+        end
+        return input
     end
 }
 
@@ -216,6 +236,7 @@ function PANEL:AddProperty(sName, sType, fnSetup, fnCallback, master)
         pnl.Input = type(pnl, fnCallback, master)
     end
     table.insert(self.tProps, pnl)
+    return pnl
 end
 
 function PANEL:Setup(ent)

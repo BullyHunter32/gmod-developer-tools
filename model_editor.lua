@@ -168,40 +168,6 @@ end
 
 vgui.Register("Developer.ModelBrowserElement", PANEL, "DButton")
 
-local function GetAngle(x, y, z, w)
-    local squ;
-    local sqx;
-    local sqy;
-    local sqz;
-    local sarg;
-    sqx = x * x;
-    sqy = y * y;
-    sqz = z * z;
-    squ = w * w;
-    sarg = -2 * (x * z - w * y);
-
-    // If the pitch angle is PI/2 or -PI/2, we can only compute
-    // the sum roll + yaw.  However, any combination that gives
-    // the right sum will produce the correct orientation, so we
-    // set rollX = 0 and compute yawZ.
-
-    local pitchY, rollX, yawZ = 0, 0, 0
-    if (sarg <= -0.99999) then
-        pitchY = -0.5 * math.pi;
-        rollX = 0;
-        yawZ = 2 * math.atan2(x, -y);
-    elseif (sarg >= 0.99999) then
-        pitchY = 0.5 * math.pi;
-        rollX = 0;
-        yawZ = 2 * math.atan2(-x, y);
-    else
-        pitchY = math.asin(sarg);
-        rollX = math.atan2(2 * (y * z + w * x), squ - sqx - sqy + sqz);
-        yawZ = math.atan2(2 * (x * y + w * z), squ + sqx - sqy - sqz);
-    end
-    return rollX, pitchY, yawZ
-end
-
 local PANEL = {}
 
 AccessorFunc(PANEL, "m_vecCamPos", "CamPos")
@@ -280,6 +246,7 @@ function PANEL:Init()
             rcX = rcX + w*0.5
             rcY = rcY + h*0.5
             input.SetCursorPos(rcX, rcY)
+            self.camDragPivot = Vector(rcX, rcY)
         end
     end
     self.ModelRenderer.CamDrag.OnMouseReleased = function(pnl, key)
@@ -334,11 +301,21 @@ function PANEL:Init()
 
             return
         end
-        if key ~= MOUSE_MIDDLE and key ~= MOUSE_RIGHT then return end
-        pnl.m_bRotating = true
-        pnl:MouseCapture(true)
+        if key == MOUSE_MIDDLE then
+            if input.IsKeyDown(KEY_LSHIFT) then
+                self.m_bCamDragging = true    
+                local x, y = input.GetCursorPos()
+                self.camDragPivot = Vector(x, y)
+            else
+                pnl.m_bRotating = true
+                pnl:MouseCapture(true)
+            end
+        end
     end
-    self.ModelRenderer.OnMouseReleased = function(pnl)
+    self.ModelRenderer.OnMouseReleased = function(pnl, key)
+        if key == MOUSE_MIDDLE then
+            self.m_bCamDragging = false
+        end
         pnl:MouseCapture(false)
         pnl.m_bRotating = false
         self.prevPos = nil
@@ -355,9 +332,7 @@ function PANEL:Init()
             local w, h = pnl.CamDrag:GetSize()
             local x, y = input.GetCursorPos()
     
-            local rcX, rcY = pnl.CamDrag:LocalToScreen()
-            rcX = rcX + w*0.5
-            rcY = rcY + h*0.5
+            local rcX, rcY = self.camDragPivot.x, self.camDragPivot.y
 
             local diffX = x - rcX
             local diffY = y - rcY
@@ -368,8 +343,8 @@ function PANEL:Init()
 
             local curLookAt = self:GetLookAt()
             local newLookAt = curLookAt
-            newLookAt = newLookAt + self:GetCamAng():Right()*(diffX*0.1)
-            newLookAt = newLookAt - self:GetCamAng():Up()*(diffY*0.1)
+            newLookAt = newLookAt + self:GetCamAng():Right()*(diffX*0.01)
+            newLookAt = newLookAt - self:GetCamAng():Up()*(diffY*0.01)
             self:SetLookAt(newLookAt)
 
         elseif self.m_bDraggingEnt then
@@ -457,6 +432,8 @@ function PANEL:Init()
     end
     self.ModelRenderer.FocusOnEnt = function(pnl, ent)
         local mins, maxs = ent:GetRenderBounds()
+        mins:Rotate(ent:GetAngles())
+        maxs:Rotate(ent:GetAngles())
         local size = math.max(mins.x, mins.y, mins.z, maxs.x, maxs.y, maxs.z)
         self:SetCamDistance(size*2)
         self:SetLookAt(ent:GetPos() + ((mins + maxs)/2))
@@ -510,23 +487,31 @@ function PANEL:Init()
         pnl.m_bDragging = false
         pnl:MouseCapture(false)
     end
-    self.AnimTimeline.Caret.Think = function(pnl, w, h)
-       if not pnl.m_bDragging then return end
-       local cx, cy = input.GetCursorPos()
+    self.AnimTimeline.Caret.Think = function(pnl)
+        if not pnl.m_bDragging then return end
+        local cx, cy = input.GetCursorPos()
+        local w = self.AnimTimeline.Header:GetWide()
+        local h = pnl:GetTall()
+        local diffX = cx - pnl.cursorPos.x
 
-       local diffX = cx - pnl.cursorPos.x
-       local newPos = pnl.startPos.x + diffX
-    --    local diffY = cy - pnl.cursorPos.y    
-       pnl:SetPos(newPos, 0)
-       
+        local minX = -h*0.5
+        local maxX = w-(h*0.5)
+
+        local newPos = math.max(math.min(pnl.startPos.x + diffX, maxX), minX)
+        local ratio = (newPos - minX)/w
+
+        self:OnTimelineChange(ratio)
+        pnl:SetPos(newPos, 0)
     end
    
     self.MenuOptions = {}
     
     self:AddMenuOption("File", "Open", {})
     self:AddMenuOption("File", "Save", {
-        DoClick = function()
-            SaveScene("test", self.Models)
+        DoClick = function()            
+            Derma_StringRequest("Save Object", "Enter a unique filename", "untitled", function(txt)
+                SaveScene(txt, self.Models)
+            end, function() end, "Save", "Cancel")
         end
     })
     self:AddMenuOption("File", "Open Recent", {
@@ -567,14 +552,19 @@ function PANEL:Init()
                 local c = [[
 local {variableName} = ClientsideModel("{model}")
 {variableName}.Parent = {parentName} -- {parentModel}
+{variableName}.BoneId = {parentBoneID}
 {variableName}.posOffset = {posOffset}
 {variableName}.angOffset = {angOffset}
 function {variableName}:UpdatePos()
     local parent = self.Parent
     local pos, ang = self:GetPos(), self:GetAngles()
     if parent then
-        pos = parent:GetPos()
-        ang = parent:GetAngles()
+        if self.BoneId then
+            pos, ang = parent:GetBonePosition(self.BoneId)
+        else
+            pos = parent:GetPos()
+            ang = parent:GetAngles()
+        end
 
         pos = pos + ang:Forward()*self.posOffset.x
         pos = pos + ang:Right()*self.posOffset.y
@@ -594,6 +584,15 @@ end
                 if v.name == v.model then
                     varName = v.model:match("([^/]+)%.mdl$") or v.name
                 end
+                local parentName = "nil"
+                local parent = v.csEnt.parentObject
+                if parent then
+                    parentName = parent.name
+                    if parentName == parent.model then
+                        parentName = parent.model:match("([^/]+)%.mdl$") or parentName
+                    end
+                end
+
                 local variables = {
                     ["variableName"] = varName,
                     ["model"] = v.model,
@@ -605,6 +604,8 @@ end
                     ),
                     ["parentModel"] = v.csEnt.parentObject and v.csEnt.parentObject.model or "Not required",
                     ["parentName"] = v.csEnt.parentObject and v.csEnt.parentObject.name or "nil",
+                    ["parentBone"] = v.csEnt.parentBone and v.csEnt.parentBone.name or "",
+                    ["parentBoneID"] = v.csEnt.parentBone and v.csEnt.parentBone.boneid or "nil"
                 }
 
                 c = c:gsub("{(.-)}", function(code)
@@ -764,6 +765,7 @@ end
         end
     end, function(this, sequence)
         self.selected.animSequence = sequence
+        self.selected.seqStart = nil
     end)
 
     self.Models = {}
@@ -866,7 +868,10 @@ function PANEL:AddModel(mdl)
         name = mdl,
         csEnt = ClientsideModel(mdl)
     }
+    dat.name = dat.model:match("([^/]+)%.mdl$") or dat.name
+
     dat.csEnt:SetNoDraw(true)
+    dat.csEnt:SetIK(false)
     dat.csEnt:SetPos(Vector())
     dat.csEnt.vecPos = Vector()
     dat.csEnt.angAngles = Angle()
@@ -895,17 +900,7 @@ function PANEL:AddModel(mdl)
         menu:AddSpacer()
         menu:AddOption("Delete", function()
             Derma_Query("You sure?", "Delete", "Yes", function()
-                -- for i = 1, #self.Models do
-                --     local d = self.Models[i]
-                --     if d.csEnt == dat.csEnt then
-                --         d.panel:Remove()
-                --         d.csEnt:Remove()
-                --         table.remove(self.Models, i)
-                --         break
-                --     end
-                -- end
                 self:DeleteModel(dat.csEnt)
-
             end, "No")
         end)
     end
@@ -932,7 +927,7 @@ function PANEL:InitSizes(w, h)
     self.m_bInitializedLayout = true
     self.Elements:SetWide(w*0.12)
     self.Properties:SetWide(w*0.125)
-    self.AnimTimeline:SetTall(h*0.065)
+    self.AnimTimeline:SetTall(52)
 end
 
 function PANEL:PerformLayout(w, h)
@@ -1042,6 +1037,7 @@ end
 local color_x = Color(255, 0, 0, 20)
 local color_y = Color(0, 255, 0, 20)
 local color_m = Color(90, 90, 90, 40) -- misc
+local color_transparent_white = Color(255, 255, 255, 20)
 function PANEL:DrawModelGrid()
     render.SetColorMaterial()
     if Developer:GetSetting("modeledit_drawgrid") then
@@ -1056,7 +1052,7 @@ function PANEL:DrawModelGrid()
     end
 
     if Developer:GetSetting("modeledit_drawfocuspoint") then
-        render.DrawWireframeSphere(self:GetLookAt(), 0.33, 7, 6, color_white)
+        render.DrawWireframeSphere(self:GetLookAt(), 0.33, 7, 6, color_transparent_white)
     end
 end
 
@@ -1085,12 +1081,62 @@ function GetRenderPos(ent)
     return renderPos, renderAng
 end
 
+local prePadding = 2
+local postPadding = 2
+function PANEL:GetAnimDuration()
+    local max = 0
+    for i = 1, #self.Models do
+        local dat = self.Models[i]
+        local ent = dat.csEnt
+        if IsValid(ent) then
+            if ent.animSequence then
+                local seqId = ent:LookupSequence(ent.animSequence.label)
+                local dur = ent:SequenceDuration(seqId)
+                if dur > max then
+                    max = dur
+                end
+            end
+        end
+    end
+    return max + prePadding + postPadding
+end
+
+function PANEL:UpdateSequences(time)
+    print("Updating to ", time)
+    for i = 1, #self.Models do
+        local dat = self.Models[i]
+        local ent = dat.csEnt
+        if IsValid(ent) then
+            if ent.animSequence then
+                local seqId = ent:LookupSequence(ent.animSequence.label)
+                -- ent:ResetSequence(seqId)
+                local start = ent:GetAnimTime()
+                local diff = CurTime()-start 
+                ent:SetCycle(time)
+
+                if not self.AnimTimeline.Caret.m_bDragging then
+                    ent:FrameAdvance( FrameTime() )
+                end
+            end
+        end
+    end
+
+
+end
+
+function PANEL:OnTimelineChange(ratio)
+    local totalDuration = self:GetAnimDuration()
+    self:UpdateSequences(ratio)
+end
+
 function PANEL:RenderModels(w, h, pnl)
     local camPos = self:GetCamPos()
     local camAng = self:GetCamAng()
 
     local x, y = pnl:LocalToScreen()
-    
+    -- if self.animTime then
+    --     self:UpdateSequences(self.animTime)
+    -- end
     cam.Start3D(camPos, camAng, 75, x, y, w, h)
         for i = 1, #self.Models do
             local dat = self.Models[i]
@@ -1104,7 +1150,7 @@ function PANEL:RenderModels(w, h, pnl)
                 
                 if dat.csEnt.animSequence then
                     local expectedSequence = dat.csEnt:LookupSequence(dat.csEnt.animSequence.label)
-                    if dat.csEnt:GetSequence() ~= expectedSequence or dat.csEnt:IsSequenceFinished() or dat.csEnt:SequenceDuration(expectedSequence) > CurTime() - (dat.csEnt.seqStart or 0) then
+                    if not dat.csEnt.seqStart then --dat.csEnt:GetSequence() ~= expectedSequence or dat.csEnt:IsSequenceFinished() or dat.csEnt:SequenceDuration(expectedSequence) > CurTime() - (dat.csEnt.seqStart or 0) then
                         dat.csEnt:ResetSequence(expectedSequence)
                         dat.csEnt.seqStart = CurTime()
                     end
@@ -1117,7 +1163,6 @@ function PANEL:RenderModels(w, h, pnl)
                     dat.csEnt:SetMaterial("")
                 end
 
-                dat.csEnt:FrameAdvance()
                 dat.csEnt:SetPos(renderPos)
                 dat.csEnt:SetAngles(renderAng)
                 if dat.csEnt.m_bShouldDraw ~= false then
