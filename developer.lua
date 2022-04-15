@@ -44,7 +44,7 @@ end
 
 function Developer:GetRootDir()
     local dir = debug.getinfo(self.GetRootDir).source
-    return dir:match("^@([%g]+)/")
+    return dir:match("^@(.+)/")
 end
 
 hook.Add("OnScreenSizeChanged", "Developer.Fonts", function()
@@ -54,9 +54,14 @@ hook.Add("OnScreenSizeChanged", "Developer.Fonts", function()
     end
 end)
 
-Developer:CreateFont("Developer.Menu", {
+Developer:CreateFont("Developer.MenuBar", {
     font = "Roboto",
     size = 18
+})
+
+Developer:CreateFont("Developer.Menu", {
+    font = "Roboto",
+    size = 15
 })
 
 Developer:CreateFont("Developer.ModelBrowserElement", {

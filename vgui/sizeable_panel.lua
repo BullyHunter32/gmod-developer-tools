@@ -105,6 +105,13 @@ function PANEL:OnResized(w)
 
 end
 
+function PANEL:Paint(w, h)
+    surface.SetDrawColor(37, 42, 49)
+    surface.DrawRect(0, 0, w, h)
+    surface.SetDrawColor(0, 0, 0, 120)
+    surface.DrawLine(w-1, 0, w-1, h)
+end
+
 function PANEL:Think()
     local side = self:GetDragging()
     if not side then return end

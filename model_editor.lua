@@ -259,6 +259,20 @@ function PANEL:Init()
     end
 
     self.ModelRenderer.OnMousePressed = function(pnl, key)
+        if not self.m_bDraggingEnt or not self.m_bCamDragging then
+            if key == MOUSE_RIGHT then
+                if input.IsKeyDown(KEY_LSHIFT) then
+                    self.m_bCamDragging = true    
+                    local x, y = input.GetCursorPos()
+                    self.camDragPivot = Vector(x, y)
+                else
+                    pnl.m_bRotating = true
+                    pnl:MouseCapture(true)
+                end
+                return
+            end
+        end
+
         if self.m_bDraggingEnt then
             if key == MOUSE_LEFT then
                 self.m_bDraggingEnt = false 
@@ -301,19 +315,9 @@ function PANEL:Init()
 
             return
         end
-        if key == MOUSE_MIDDLE then
-            if input.IsKeyDown(KEY_LSHIFT) then
-                self.m_bCamDragging = true    
-                local x, y = input.GetCursorPos()
-                self.camDragPivot = Vector(x, y)
-            else
-                pnl.m_bRotating = true
-                pnl:MouseCapture(true)
-            end
-        end
     end
     self.ModelRenderer.OnMouseReleased = function(pnl, key)
-        if key == MOUSE_MIDDLE then
+        if self.m_bCamDragging and (key == MOUSE_MIDDLE or key == MOUSE_RIGHT) then
             self.m_bCamDragging = false
         end
         pnl:MouseCapture(false)
@@ -506,34 +510,45 @@ function PANEL:Init()
    
     self.MenuOptions = {}
     
-    self:AddMenuOption("File", "Open", {})
+    self:AddMenuOption("File", "Open", {
+        Shortcut = {KEY_LCONTROL, KEY_O}
+    })
     self:AddMenuOption("File", "Save", {
         DoClick = function()            
             Derma_StringRequest("Save Object", "Enter a unique filename", "untitled", function(txt)
                 SaveScene(txt, self.Models)
             end, function() end, "Save", "Cancel")
-        end
+        end,
+        Shortcut = {KEY_LCONTROL, KEY_S}
     })
     self:AddMenuOption("File", "Open Recent", {
         PopulateSubMenu = function(pnl)
             local files = GetRecentSaves()
             for i = 1, #files do
-                pnl:AddOption(files[i], function()
-                    LoadScene(files[i], self)
-                end)
+                pnl.Menu:AddOption(files[i], {
+                    DoClick = function()
+                        LoadScene(files[i], self)
+                    end,
+                })
             end
-        end
+        end,
     })
-    self:AddMenuOption("File", "Open Backup", {})
     self:AddMenuOption("File", "Close", {
         DoClick = function()
             self:Remove()
-        end
+        end,
+        Shortcut = {KEY_LALT, KEY_F4}
     })
 
-    self:AddMenuOption("Edit", "Undo", {})
-    self:AddMenuOption("Edit", "Copy", {})
-    self:AddMenuOption("Edit", "Paste", {})
+    self:AddMenuOption("Edit", "Undo", {
+        Shortcut = {KEY_LCONTROL, KEY_Z}
+    })
+    self:AddMenuOption("Edit", "Copy", {
+        Shortcut = {KEY_LCONTROL, KEY_C}
+    })
+    self:AddMenuOption("Edit", "Paste", {
+        Shortcut = {KEY_LCONTROL, KEY_V}
+    })
 
     self:AddMenuOption("View", "Wireframe Bounds", {
         toggleable = true,
@@ -626,33 +641,55 @@ end
             local renderTarget = render.GetRenderTarget()
             local texture = Material("icon16/add.png"):GetTexture("$basetexture")
             hook.Add("PreRender", self, function()
-                render.OverrideAlphaWriteEnable(true, true)
-                render.Clear( 0, 0, 0, 0, true )
+                render.Clear(0, 0, 0, 0, true, true)
+                render.SetWriteDepthToDestAlpha(false)
 
+                -- render.OverrideAlphaWriteEnable(false)
                 if bExported then
-                    render.OverrideAlphaWriteEnable( false )
                     hook.Remove("PreRender", self)
                     return
                 end
    
                 bExported = true
+
+                local mdlRenW, mdlRenH = self.ModelRenderer:GetSize()
+                local ratio = mdlRenW/mdlRenH
+
                 local camPos = self:GetCamPos()
                 local camAng = self:GetCamAng()
-            
-                cam.Start3D(camPos, camAng, 75, 0, 0, w, h)
+                camPos = camPos - (camAng:Forward()*ratio)
+                -- render.SetBlend(1)
+                cam.Start3D(camPos, camAng, 75, 0, 0, ScrW(), ScrH())
                     for i = 1, #self.Models do
                         local dat = self.Models[i]
-                        if dat and IsValid(dat.csEnt) and dat.csEnt.m_bShouldDraw ~= false then
+                        if dat and IsValid(dat.csEnt) then
                             if self.selected == dat.csEnt then
                                 render.SetColorMaterial()
                                 render.SetColorModulation(1, 0 ,0)
-                            end
+                            end 
                             local ent = dat.csEnt
                             local renderPos, renderAng = GetRenderPos(dat.csEnt)
                             
+                            if dat.csEnt.animSequence then
+                                local expectedSequence = dat.csEnt:LookupSequence(dat.csEnt.animSequence.label)
+                                if not dat.csEnt.seqStart then --dat.csEnt:GetSequence() ~= expectedSequence or dat.csEnt:IsSequenceFinished() or dat.csEnt:SequenceDuration(expectedSequence) > CurTime() - (dat.csEnt.seqStart or 0) then
+                                    dat.csEnt:ResetSequence(expectedSequence)
+                                    dat.csEnt.seqStart = CurTime()
+                                end
+                            end
+            
+                            if Developer:GetSetting("modeledit_wireframemodels") then
+                                render.SetMaterial(MATERIAL_WIREFRAME)
+                                dat.csEnt:SetMaterial("models/wireframe")
+                            else
+                                dat.csEnt:SetMaterial("")
+                            end
+            
                             dat.csEnt:SetPos(renderPos)
                             dat.csEnt:SetAngles(renderAng)
-                            dat.csEnt:DrawModel()
+                            if dat.csEnt.m_bShouldDraw ~= false then
+                                dat.csEnt:DrawModel()
+                            end
                             draw.NoTexture()
                             render.SetColorModulation(1, 1, 1)
             
@@ -844,21 +881,9 @@ function PANEL:OnKeyCodePressed(key)
 
     if key == KEY_A then
         local menu = Developer.CreateMenu()
-        menu:AddOption("Hello!", function()
-            print("What")
-        end)
-        menu:AddOption("Hello!", function()
-            print("What")
-        end)
-        menu:AddOption("Hello!", function()
-            print("What")
-        end)
-        menu:AddOption("Hello!", function()
-            print("What")
-        end)
-        menu:AddOption("Hello!", function()
-            print("What")
-        end)
+        menu:AddOption("Create Model", {
+            Shortcut = {KEY_LSHIFT, KEY_A},
+        })  
     end
 end
 
@@ -947,36 +972,41 @@ function PANEL:CreateMenuCategory(sName)
         if pnl:IsHovered() then
             col = color_mn_active
         end
-        draw.SimpleText(sName, "Developer.Menu", w/2, h/2, col, 1, 1)
+        draw.SimpleText(sName, "Developer.MenuBar", w/2, h/2, col, 1, 1)
     end
     btn.DoClick = function(pnl)
         local x,y = pnl:LocalToScreen()
         local w, h = pnl:GetSize()
-        local menu = DermaMenu()
-        menu:MakePopup()
+        -- local menu = DermaMenu()
+        local menu = Developer.CreateMenu()
+        -- menu:MakePopup()
         menu:SetPos(x, y + h)
         local options = self.MenuOptions[sName]
         for k, v in pairs(options or {}) do
             local setting = Developer.Settings[v.optionId]
             if not v.PopulateSubMenu then
-                local op = menu:AddOption(v.Name, function(pnl)
-                    if v.DoClick then
-                        v.DoClick(pnl)
-                    end
-                    if not setting then return end
-                    if setting.type == "toggle" then
-                        pnl:ToggleCheck()
-                    end
-                end) 
+                local op = menu:AddOption(v.Name, {
+                    DoClick = function(pnl)
+                        if v.DoClick then
+                            v.DoClick(pnl)
+                        end
+                        if not setting then return end
+                        if setting.type == "toggle" then
+                            pnl:ToggleCheck()
+                        end
+                    end,
+                    Shortcut = v.Shortcut
+                })
                 op.OnChecked = function(pnl, state)
                     setting.value = state
                 end
-                if setting then
-                    op:SetChecked(setting.value)
-                end
+                -- if setting then
+                --     op:SetChecked(setting.value)
+                -- end
             else
-                local op = menu:AddSubMenu(v.Name, function()
-                end)
+                local op = menu:AddSubMenu(v.Name, {
+
+                })
                 v.PopulateSubMenu(op)
             end
         end
