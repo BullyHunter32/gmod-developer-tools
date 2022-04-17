@@ -14,7 +14,8 @@ local function SaveScene(name, models)
             pos = v.csEnt.vecPos,
             ang = v.csEnt.angAngles,
             entity = v.csEnt,
-            sequence = anim
+            sequence = anim,
+            scale = v.csEnt:GetModelScale()
         })
     end
 
@@ -54,6 +55,9 @@ local function LoadScene(name, pnl)
         if IsValid(ent) then
             ent.vecPos = Vector(v.pos)
             ent.angAngles = Angle(v.ang)
+            if v.scale then
+                ent:SetModelScale(v.scale)
+            end
             if v.sequence then
                 ent.animSequence = ent:GetSequenceInfo(v.sequence)
             end
@@ -290,7 +294,6 @@ function PANEL:Init()
 
             local dir = self:GetCamAng():Forward() - (self:GetCamAng():Right() * math.rad(diffX)) + (self:GetCamAng():Up() * math.rad(diffY))
 
-
             local ent = self:TraceLine({
                 start = self:GetCamPos(),
                 dir = dir,
@@ -520,6 +523,9 @@ function PANEL:Init()
             for i = 1, #files do
                 pnl:AddOption(files[i], function()
                     LoadScene(files[i], self)
+                    -- for i = 1, #self.Models do
+                    --     self:SetupProps()
+                    -- end
                 end)
             end
         end
@@ -745,7 +751,6 @@ end
     self:AddPropertyType("Animations", "Sequence", "ComboBox", function(this, ent)
         this.Input:SetSelected(ent.animSequence)
         return function()
-            print(ent, " has ", ent:GetSequenceCount())
             local sequences = {}
             local x = 0
             for i = 0, ent:GetSequenceCount() do
@@ -870,9 +875,14 @@ function PANEL:AddModel(mdl)
     }
     dat.name = dat.model:match("([^/]+)%.mdl$") or dat.name
 
+    dat.csEnt:SetupBones()
     dat.csEnt:SetNoDraw(true)
     dat.csEnt:SetIK(false)
     dat.csEnt:SetPos(Vector())
+    -- dat.csEnt:SetMoveType(MOVETYPE_NONE)
+    -- dat.csEnt:SetSolid(SOLID_VPHYSICS)
+    -- dat.csEnt:PhysicsInit(SOLID_VPHYSICS)
+    -- dat.csEnt:PhysWake()
     dat.csEnt.vecPos = Vector()
     dat.csEnt.angAngles = Angle()
 
@@ -1129,6 +1139,31 @@ function PANEL:OnTimelineChange(ratio)
     self:UpdateSequences(ratio)
 end
 
+local function Draw3DCircle(origin, radius, angle, degStart, degFin)
+    local offset = angle:Forward()
+
+
+    local prevPoint
+    for i = 0, degStart, degFin do
+        local point = origin + angle:Right()*(math.cos(math.rad(i))*radius)
+        local point = origin + angle:Forward()*(math.sin(math.rad(i))*radius)
+        local point = origin + angle:Up()*(i*radius)
+        if prevPoint then
+            render.DrawBeam(prevPoint, point, 1, 1, 1, color_white)
+        end
+        prevPoint = point
+    end
+end
+
+local function DrawRotationAxis(self, ent)
+    local radius = (self:GetCamDistance()/math.min(self:GetTall(), self:GetWide()))*320
+
+    local pos = ent:GetPos()
+    local right = pos + ent:GetRight()*radius
+    render.DrawBeam(pos, right, 1, 1, 1, color_white)
+    Draw3DCircle(pos, 200, Angle(), 0, 360)
+end
+
 function PANEL:RenderModels(w, h, pnl)
     local camPos = self:GetCamPos()
     local camAng = self:GetCamAng()
@@ -1144,6 +1179,7 @@ function PANEL:RenderModels(w, h, pnl)
                 if self.selected == dat.csEnt then
                     render.SetColorMaterial()
                     render.SetColorModulation(1, 0 ,0)
+                    DrawRotationAxis(self, dat.csEnt)
                 end
                 local ent = dat.csEnt
                 local renderPos, renderAng = GetRenderPos(dat.csEnt)
@@ -1167,14 +1203,14 @@ function PANEL:RenderModels(w, h, pnl)
                 dat.csEnt:SetAngles(renderAng)
                 if dat.csEnt.m_bShouldDraw ~= false then
                     dat.csEnt:DrawModel()
+                    if Developer:GetSetting("modeledit_wireframe") then
+                        local mins, maxs = dat.csEnt:GetRenderBounds()
+                        render.DrawWireframeBox(renderPos, renderAng, mins, maxs, color_white)
+                    end
                 end
                 draw.NoTexture()
                 render.SetColorModulation(1, 1, 1)
 
-                if Developer:GetSetting("modeledit_wireframe") then
-                    local mins, maxs = dat.csEnt:GetRenderBounds()
-                    render.DrawWireframeBox(renderPos, renderAng, mins, maxs, color_white)
-                end
             end
         end
         if self.lastTrace then
@@ -1196,9 +1232,10 @@ function PANEL:RenderModels(w, h, pnl)
 
 end 
 
-local function CheckCollision(self, pos)
-    for i = 1, #self.Models do
-        local dat = self.Models[i]
+local function CheckCollision(self, pos, models)
+    models = models or self.Models
+    for i = 1, #models do
+        local dat = models[i]
         if dat and IsValid(dat.csEnt) and dat.csEnt.m_bShouldDraw ~= false then
             local mins, maxs = dat.csEnt:GetRenderBounds()
             local epos = dat.csEnt:GetPos()
@@ -1211,22 +1248,53 @@ local function CheckCollision(self, pos)
     end
 end
 
-function PANEL:TraceLine(tData)
+function PANEL:TraceLine(tData) 
     local start = tData.start or self:GetCamPos()
     local dir = tData.dir or self:GetCamAng():Forward()
     local distance = tData.range or 800
 
     self.lastTrace = {start,dir,distance}
+    local hits = {}
+
+
+    local models = table.Copy(self.Models)
+    table.sort(models, function(a, b)
+        local entA = a.csEnt
+        local entB = b.csEnt
+
+        local mins, maxs = entA:GetRenderBounds()
+        local sizeA = math.max(mins.x, mins.y, mins.z, maxs.x, maxs.y, maxs.z)
+         
+        mins, maxs = entB:GetRenderBounds()
+        local sizeB = math.max(mins.x, mins.y, mins.z, maxs.x, maxs.y, maxs.z)
+        return sizeA < sizeB
+    end)
+
+    PrintTable(models)
 
     local pos = start
     local inc = distance/333
     for i = 1, distance, inc do
         pos = pos + (dir*inc)
-        local hit = CheckCollision(self, pos)
+        local hit = CheckCollision(self, pos, models)
         if hit then
-            return hit
+            table.insert(hits, hit)
         end
     end
+
+    local smallestObj
+    local smallestSize
+    for i = 1, #hits do
+        local ent = hits[i]
+        local mins, maxs = ent:GetRenderBounds()
+        local size = math.max(mins.x, mins.y, mins.z, maxs.x, maxs.y, maxs.z)
+        -- print("Size of ", ent:GetModel(), size)
+        if not smallestSize or size < smallestSize then
+            smallestSize = size
+            smallestObj = ent
+        end
+    end
+    return smallestObj
 end
 
 vgui.Register("Developer.ModelEditor", PANEL, "EditablePanel")
