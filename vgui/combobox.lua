@@ -8,6 +8,7 @@ function PANEL:OpenMenu()
     local x, y = self:LocalToScreen()
     local w, h = self:GetSize()
     self.Menu = DermaMenu()
+    self.Menu:SetMaxHeight(math.min(ScrH()-y, ScrH()*0.5))
     self.Menu:MakePopup()
     self.Menu:SetPos(x, y + h)
     for k,v in ipairs(self:GetOptions()) do
@@ -49,12 +50,12 @@ function PANEL:IsOpen()
     return IsValid(self.Menu)
 end
 
-local mat = Material("developer/downarrow.png")
+local mat = Material("developer/arrow.png")
 function PANEL:Paint(w, h)
     surface.SetDrawColor(255, 255, 255)
     surface.SetMaterial(mat)
-    local size = h*0.5
-    surface.DrawTexturedRectRotated(w-(h*0.75) + (size*0.5), h*0.5, size, size, self:IsOpen() and 180 or 0)
+    local size = h
+    surface.DrawTexturedRectRotated(w-(size) + (size*0.5), h*0.5, size, size, self:IsOpen() and 90 or -90)
     draw.SimpleText(self:GetSelectedName(self.Selected), "Developer.Property", h*0.2, h*0.5, color_white, 0, 1)
 end
 

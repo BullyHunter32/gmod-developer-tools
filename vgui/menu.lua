@@ -71,10 +71,12 @@ end
 local PANEL = {}
 
 AccessorFunc(PANEL, "m_Shortcut", "Shortcut")
+AccessorFunc(PANEL, "m_bIsChecked", "Checked")
 
 function PANEL:Init()
+    self.BaseClass.SetText(self, "")
     self.m_bIsMenuComponent = true
-    self:SetShortcut({KEY_LSHIFT, KEY_A})
+    -- self:SetShortcut({KEY_LSHIFT, KEY_A})
 end
 
 function PANEL:GetShortcutText()
@@ -97,12 +99,53 @@ function PANEL:GetShortcutText()
     return txt
 end
 
+function PANEL:SetSubMenu(menu)
+    menu.Parent = self
+end
+
+function PANEL:SetText(txt)
+    self.m_sText = txt
+end
+
+function PANEL:OnChecked()
+    
+end
+
+function PANEL:ToggleCheck()
+    local newState = not self:GetChecked()
+    self:SetChecked(newState)
+    self:OnChecked(newState)
+end
+
+function PANEL:GetText()
+    return self.m_sText or "Text"
+end
+
+local MAT_TICK = Material("developer/tick.png")
+local MAT_ARROW = Material("developer/arrow.png")
 function PANEL:Paint(w, h)
     if self:IsHovered() then
         draw.RoundedBox(4, 0, 0, w, h, Color(40, 103, 158, 98))
     end
-    draw.SimpleText(self:GetText(), "ChatFont", h*0.15, h*0.5, color_white, 0, 1)
-    draw.SimpleText(self:GetShortcutText(), "ChatFont", w-h*0.15, h*0.5, color_white, 2, 1)
+    draw.SimpleText(self:GetText(), "Developer.Menu", h*0.15, h*0.5, color_white, 0, 1)
+
+    local xOffset = h*0.18
+    local inc = h*0.05
+    if self.Menu then
+        surface.SetMaterial(MAT_ARROW)
+        surface.SetDrawColor(255, 255, 255)
+        local size = h
+        surface.DrawTexturedRect(w - (xOffset + size), h/2 - size/2, size, size)
+        xOffset = xOffset + size + inc
+    end
+    if self:GetChecked() then
+        surface.SetMaterial(MAT_TICK)
+        surface.SetDrawColor(255, 255, 255)
+        local size = h
+        surface.DrawTexturedRect(w - (xOffset + size), h/2 - size/2, size, size)
+        xOffset = xOffset + size + inc
+    end
+    draw.SimpleText(self:GetShortcutText(), "Developer.Menu", w-xOffset, h*0.5, color_white, 2, 1)
 end
 
 vgui.Register("Developer.PopupMenuRow", PANEL, "DButton")
@@ -120,8 +163,13 @@ function PANEL:Init()
     self.m_iChildren = 0
 end
 
+function PANEL:OnRemove()
+    if IsValid(self.ParentMenu) then
+        self.ParentMenu:Remove()
+    end
+end
 
-function PANEL:AddOption(sText, fnCallback)
+function PANEL:AddOption(sText, tData)
     local btn = self:Add("Developer.PopupMenuRow")
     btn.ParentMenu = self
     btn.m_bIsMenuComponent = true
@@ -129,12 +177,55 @@ function PANEL:AddOption(sText, fnCallback)
     btn:SetTall(24)
     btn:SetText(sText)
     btn.DoClick = function()
-        if fnCallback then
-            fnCallback(self, btn)
+        if tData.DoClick then
+            tData.DoClick(btn, self)
+        end
+        btn.ParentMenu:Remove()
+    end
+    if tData.Shortcut then
+        btn:SetShortcut(tData.Shortcut)
+    end
+    self.m_iChildren = self.m_iChildren + 1
+    self:SetTall(self.m_iChildren*24)
+    return btn
+end
+
+function PANEL:AddSubMenu(sText, tData)
+    local btn = self:Add("Developer.PopupMenuRow")
+    btn.ParentMenu = self
+    btn.m_bIsMenuComponent = true
+    btn:Dock(TOP)
+    btn:SetTall(24)
+    btn:SetText(sText)
+    btn.DoClick = function()
+        if tData.DoClick then
+            tData.DoClick(self, btn)
+        end
+        CloseDermaMenus()
+    end
+    if tData.Shortcut then
+        btn:SetShortcut(tData.Shortcut)
+    end
+    btn.Menu = Developer.CreateMenu()
+    btn.Menu:SetVisible(false)
+    btn:SetSubMenu(btn.Menu)
+    btn.Menu.ParentMenu = self
+    btn.OnCursorEntered = function(pnl)
+        if not IsValid(pnl.Menu) then return end
+        local x, y = pnl:LocalToScreen()
+        local w, h = pnl:GetSize()
+        pnl.Menu:SetPos(x + w, y)
+        pnl.Menu:SetVisible(true)
+    end
+    btn.Menu.Think = function(pnl)
+        if not pnl:IsHovered() and not pnl.Parent:IsHovered() and not pnl:IsChildHovered() then
+            pnl:SetVisible(false)
+            pnl.StartTime = CurTime()
         end
     end
     self.m_iChildren = self.m_iChildren + 1
     self:SetTall(self.m_iChildren*24)
+    return btn
 end
 
 local matBlurScreen = Material( "pp/blurscreen" )
