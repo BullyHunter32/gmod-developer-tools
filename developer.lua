@@ -42,6 +42,13 @@ function Developer:CreateFont(sFontName, tFontData)
     self.Fonts[sFontName] = tFontData
 end
 
+function Developer:TableToList(tbl)
+    for k,v in ipairs(tbl) do
+        tbl[v] = true
+        tbl[k] = nil
+    end
+end
+
 function Developer:GetRootDir()
     local dir = debug.getinfo(self.GetRootDir).source
     return dir:match("^@(.+)/")
@@ -72,6 +79,11 @@ Developer:CreateFont("Developer.ModelBrowserElement", {
 Developer:CreateFont("Developer.Property", {
     font = "Roboto",
     size = 15
+})
+
+Developer:CreateFont("Developer.FileBrowserRow", {
+    font = "Roboto",
+    size = 13
 })
 
 local vguiDir = Developer:GetRootDir().."/vgui/"

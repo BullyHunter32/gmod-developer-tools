@@ -11,7 +11,7 @@ function PANEL:Init()
     self.Body:Dock(TOP)
     self.Body:SetSizeable(false, false, false, true)
 
-    self.TextBox = self:Add("DTextEntry")
+    self.TextBox = self.Body:Add("DTextEntry")
     self.TextBox:SetMultiline(true)
     self.TextBox:SetText("lorem ipsum nada nada")
     self.TextBox:Dock(FILL)
@@ -27,7 +27,7 @@ end
 function PANEL:EvaluateExpression(expr)
     local success, txt = pcall(string.match, self.TextBox:GetText(), expr)
     txt = txt or ""
-    self.Output:SetText(txt)
+    self.Output:SetText(txt .. " /"..#txt.."/")
 end
 
 function PANEL:InitSizes(w, h)
@@ -43,7 +43,7 @@ end
 
 vgui.Register("Developer.PatternViewer", PANEL, "Developer.Frame")
 
--- local f = vgui.Create("Developer.PatternViewer")
--- f:SetSize(500, 400)
--- f:Center()
--- f:MakePopup()
+local f = vgui.Create("Developer.PatternViewer")
+f:SetSize(500, 400)
+f:Center()
+f:MakePopup()

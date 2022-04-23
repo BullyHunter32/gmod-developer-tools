@@ -16,9 +16,15 @@ function PANEL:Init()
     self.Body = self:Add("Panel")
     self.Body:Dock(FILL)
 
-    self.Body.Files = self.Body:Add("DScrollPanel")
+    self.Body.Files = self.Body:Add("Developer.DataList")
+    self.Body.Files:AddColumn("Name")
+    self.Body.Files:AddColumn("Date Modified")
+    self.Body.Files:AddColumn("Type")
+    self.Body.Files:AddColumn("Size")
     self.Body.Files:Dock(FILL)
     self.Body.Files.Paint = nil
+
+    
 
     self.Body.Dir = self.Body:Add("DPanel")
     self.Body.Dir:Dock(TOP)
@@ -39,6 +45,14 @@ function PANEL:Init()
     self:SetupFolder("")
 end
 
+local FILE_TYPES = {
+    ["png"] = "PNG",
+    ["jpg"] = "JPG",
+    ["exe"] = "Application",
+    ["zip"] = "ZIP Archive",
+    ["txt"] = "Text Document"
+}
+
 function PANEL:AddFile(sDir, isFolder)
     local fileName
     -- if isFolder then
@@ -47,33 +61,23 @@ function PANEL:AddFile(sDir, isFolder)
         fileName = sDir:match("([^/]+)$") or sDir
     -- end
 
-    local panel = self.Body.Files:Add("DButton")
-    panel:Dock(TOP)
-    panel:SetTall(25)
-    panel:SetText("")
-    panel.Paint = function(pnl, w, h)
-        draw.SimpleText(fileName, "Developer.Menu", h*0.5, h*0.5, color_white, 0, 1)
-    end
+    local dateModified = os.date("%x %H:%m", file.Time(sDir, "GAME"))
+    local fileType = isFolder and "Folder" or fileName:match("([^%.]+)$") or "File"
+    fileType = FILE_TYPES[fileType] or fileType
+
+    local size = isFolder and "" or string.NiceSize(file.Size(sDir, "GAME") or 0)
+    local panel = self.Body.Files:AddRow(fileName, dateModified, fileType, size)
     panel.DoClick = function(pnl)
-        if not isFolder then return end
-        self:SetupFolder(sDir .. "/")
+        if isFolder then
+            self:SetupFolder(sDir .. "/")
+        else
+            self:SelectFile(sDir, fileName)
+        end
     end
 end
 
-function PANEL:AddEscape()
-    local prevFolder = self.CurrentDir:match("(.+)/.+$")
-    prevFolder = prevFolder and prevFolder or ""
- 
-    local panel = self.Body.Files:Add("DButton")
-    panel:Dock(TOP)
-    panel:SetTall(25)
-    panel:SetText("")
-    panel.Paint = function(pnl, w, h)
-        draw.SimpleText("../", "Developer.Menu", h*0.5, h*0.5, color_white, 0, 1)
-    end
-    panel.DoClick = function(pnl)
-        self:SetupFolder(prevFolder)
-    end
+function PANEL:SelectFile(sDir)
+
 end
 
 function PANEL:SetupCrumbs()
@@ -94,29 +98,46 @@ function PANEL:SetupCrumbs()
             name = crumbs[i]
             cur = cur .. name .. "/"
         end
+
+
         local btn = self.Body.Dir:Add("DButton")
         btn:Dock(LEFT)
-        btn:SetText(name)
+        btn.label = name == "" and "/" or name
+        btn:SetText(btn.label)
         btn:SetFont("Developer.Menu")
         btn:SizeToContentsX(4)
+        btn:SetText("")
         btn.dir = cur
         btn.DoClick = function(pnl)
             print(pnl.dir)
             self:SetupFolder(pnl.dir)
         end
+        btn.Paint = function(pnl, w, h)
+            local col
+            if i == c then
+                col = Color(25, 90, 210)
+            elseif pnl:IsHovered() then
+                col = Color(190, 190, 190)
+            else
+                col = Color(150, 153, 158)
+            end
 
+            draw.SimpleText(btn.label, "Developer.Menu", w/2, h/2, col, 1, 1)
+        end
+
+        if name == "" then goto skip end
         local div = self.Body.Dir:Add("DLabel")
         div:Dock(LEFT)
         div:SetText("/")
         div:SetFont("Developer.Menu")
-        div:SizeToContentsX(4)
+        div:SizeToContentsX()
+        ::skip::
     end
 end
 
 function PANEL:SetupFolder(sDir)
     self.CurrentDir = sDir
     self.Body.Files:Clear()
-    self:AddEscape()
     self:SetupCrumbs()
 
     local files, folders = file.Find(sDir .. "*", "GAME")
@@ -144,6 +165,12 @@ end
 
 function PANEL:PerformLayout(w, h)
     self:InitSizes(w, h)
+
+    local fileW = w*0.25
+    local dateModW = w*0.2
+    local typeW = w*0.12
+    local sizeW = w - (fileW + dateModW + typeW)
+    self.Body.Files:SetColumnWidth(0.35, 0.28, 0.18, -1)
 end
 
 vgui.Register("Developer.FileBrowser", PANEL, "Developer.Frame")
